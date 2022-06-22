@@ -5,7 +5,9 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
+anyhow = "1.0.58"                                   # Flexible concrete Error type built on std::error::Error
 chrono = "0.4.19"
 rusqlite = { version = "0.27.0", features = ["bundled"] }
 tokio-test = "0.4.2"                # Testing utilities for Tokio- and futures-based code
 yahoo_finance_api = "1.2.2"
+
