@@ -1,11 +1,11 @@
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, Transaction};
 use std::env;
 use std::path::{Path, PathBuf};
 use yahoo_finance_api as yahoo;
 
 const DEFAULT_FILE: &str = ".local/stonks/db.sqlite3";
 
-use Quote;
+use crate::quote::Quote;
 
 pub struct Db {
     conn: Connection,
@@ -21,7 +21,10 @@ fn init_tables(conn: &mut Connection) -> rusqlite::Result<()> {
            low REAL,
            open REAL,
            close REAL,
-           adjclose REAL
+           avg REAL,
+           adjclose REAL,
+           volume INTEGER,
+           count INTEGER
          )",
         [],
     )?;
@@ -65,6 +68,16 @@ fn ensure_parent(db_path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
+// struct QuoteWriter<'a> {
+//     tx: Transaction<'a>,
+//     stmt:
+// }
+//
+// impl QuoteWriter<'a> {
+//     pub fn insert_row(q: &Quote) -> anyhow::Result<()> {
+//     }
+// }
+
 impl Db {
     pub fn init(file: Option<PathBuf>) -> anyhow::Result<Self> {
         let home = env::var("HOME")?;
@@ -105,4 +118,7 @@ impl Db {
         }
         Ok(tx.commit()?)
     }
+    //
+    //     pub fn get_writer() -> QuoteWriter {
+    //     }
 }

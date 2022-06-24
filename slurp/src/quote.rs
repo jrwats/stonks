@@ -1,28 +1,50 @@
+use anyhow::Context;
+use chrono::format::{self, strftime::StrftimeItems, Parsed};
 use chrono::prelude::*;
 use ibtwsapi::core::common::BarData;
 
+#[derive(Debug)]
 pub struct Quote {
-    timestamp: i64,
-    high: f64,
-    low: f64,
-    open: f64,
-    close: f64,
-    volume: i64,
-    avg: f64, // weighted avg price
-    count: i32 // number of trades during the bar's timespan (day)
+    pub timestamp: i64,
+    pub open: f64,
+    pub close: f64,
+    pub high: f64,
+    pub low: f64,
+    pub avg: f64, // weighted avg price
+    pub volume: i64,
+    pub count: i32, // number of trades during the bar's timespan (day)
 }
 
 fn to_timestamp(daily: &str) -> anyhow::Result<i64> {
+    eprintln!("to_timestamp({})", daily);
     // "20220623" => 1654781400
-    let naive_date = NaiveDate::parse_from_str(daily, "%Y%m%d")?;
-    let naive_dt = naive_date.and_hms(4, 0, 0); // 4PM EST
-    let offset = chrono::FixedOffset::west(5 * 3600); // EST TZ
-    let ts: DateTime<Utc> = chrono::DateTime::from_utc(naive_dt, TimeZone::from_offset(&offset));
-    Ok(ts.timestamp())
+    let mut p = Parsed::default();
+    format::parse(&mut p, daily, StrftimeItems::new("%Y%m%d"))
+        .with_context(|| format!("parsing {}", daily))?;
+    eprintln!("parsed YYYYmmdd");
+    p.hour_mod_12 = Some(4); // 4:00
+    p.hour_mod_12 = Some(4); // 4:00
+    p.hour_div_12 = Some(1); // PM
+    p.minute = Some(0);
+    p.second = Some(0);
+    eprintln!("Set hour");
+
+    // Convert parsed information into a DateTime in the Paris timezone
+    let est_tz = FixedOffset::west(5 * 3600);
+    let dt = p.to_datetime_with_timezone(&est_tz)?;
+    eprintln!("to_datetime_with_timezone");
+    let utc_dt = dt.with_timezone(&Utc);
+
+    // let naive_date = NaiveDate::parse_from_str(daily, "%Y%m%d")?;
+    // let naive_dt = naive_date.and_hms(4, 0, 0); // 4PM EST
+    // let offset = chrono::FixedOffset::west(5 * 3600); // EST TZ
+    // let ts: DateTime<Utc> = chrono::DateTime::from_utc(naive_dt, TimeZone::from_offset(&offset));
+    Ok(utc_dt.timestamp())
 }
 
-impl Quote {
-    fn try_from_daily_ib_bar(bar: &BarData) -> anyhow::Result<Self> {
+impl TryFrom<BarData> for Quote {
+    type Error = anyhow::Error;
+    fn try_from(bar: BarData) -> anyhow::Result<Self> {
         let timestamp = to_timestamp(&bar.date)?;
         Ok(Quote {
             timestamp,
@@ -32,8 +54,22 @@ impl Quote {
             close: bar.close,
             volume: bar.volume,
             avg: bar.average,
-            count: bar.bar_count
+            count: bar.bar_count,
         })
     }
 }
 
+impl From<yahoo_finance_api::Quote> for Quote {
+    fn from(yq: yahoo_finance_api::Quote) -> Self {
+        Quote {
+            timestamp: yq.timestamp as i64,
+            high: yq.high,
+            low: yq.low,
+            open: yq.open,
+            close: yq.adjclose,
+            volume: yq.volume as i64,
+            avg: -1.0,
+            count: -1,
+        }
+    }
+}
