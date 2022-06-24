@@ -1,8 +1,11 @@
-use std::path::{Path, PathBuf};
-use std::env;
 use rusqlite::{params, Connection};
+use std::env;
+use std::path::{Path, PathBuf};
+use yahoo_finance_api as yahoo;
 
 const DEFAULT_FILE: &str = ".local/stonks/db.sqlite3";
+
+use Quote;
 
 pub struct Db {
     conn: Connection,
@@ -20,9 +23,12 @@ fn init_tables(conn: &mut Connection) -> rusqlite::Result<()> {
            close REAL,
            adjclose REAL
          )",
-        []
-        )?;
-    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS daily_idx ON daily (ticker, timestamp)", [])?;
+        [],
+    )?;
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS daily_idx ON daily (ticker, timestamp)",
+        [],
+    )?;
 
     for ema_period in [8, 21, 34, 89] {
         let sql = format!(
@@ -31,8 +37,8 @@ fn init_tables(conn: &mut Connection) -> rusqlite::Result<()> {
            value REAL,
            FOREIGN KEY ([daily_id]) REFERENCES "daily" ([id])
          )"#,
-         ema_period,
-         );
+            ema_period,
+        );
         conn.execute(&sql, [])?;
     }
 
@@ -43,8 +49,8 @@ fn init_tables(conn: &mut Connection) -> rusqlite::Result<()> {
            value REAL,
            FOREIGN KEY ([daily_id]) REFERENCES "daily" ([id])
          )"#,
-         sma_period,
-         );
+            sma_period,
+        );
         conn.execute(&sql, [])?;
     }
     Ok(())
@@ -70,5 +76,33 @@ impl Db {
         Ok(instance)
     }
 
+    pub fn insert_daily_quotes(
+        &mut self,
+        ticker: &str,
+        daily_quotes: &[Quote],
+    ) -> anyhow::Result<()> {
+        let tx = self.conn.transaction()?;
+        {
+            let mut stmt = tx.prepare(
+                "INSERT INTO daily 
+                  (ticker, timestamp, high, low, open, close, avg, volume, count) 
+                VALUES 
+                  (?,      ?,         ?,    ?,   ?,    ?,     ?,   ?,      ?)",
+            )?;
+            for quote in daily_quotes {
+                stmt.execute(params![
+                    ticker,
+                    quote.timestamp,
+                    &quote.open,
+                    &quote.close,
+                    &quote.high,
+                    &quote.low,
+                    &quote.avg,
+                    &quote.volume,
+                    &quote.count
+                ])?;
+            }
+        }
+        Ok(tx.commit()?)
+    }
 }
-
