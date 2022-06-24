@@ -32,7 +32,6 @@ fn get_yahoo_quotes(mut db: db::Db) -> anyhow::Result<()> {
     let stdin = io::stdin();
     for maybe_ticker in stdin.lock().lines() {
         let ticker = maybe_ticker?;
-        println!("ticker: {}", &ticker);
         tokio_test::block_on(provider.get_quote_history(&ticker, four_yrs_ago, now))
             .map_err(|e| {
                 eprintln!("{} not found", &ticker);
@@ -92,6 +91,7 @@ impl Wrapper {
         let query_time = dt.format("%Y%m%d %H:%M:%S").to_string();
         self.req_id += 1;
         self.req2ticker.insert(self.req_id, ticker.to_string());
+        eprintln!("requesting {}", ticker);
         Ok(self.client.req_historical_data(
             self.req_id,
             &contract,
@@ -193,7 +193,6 @@ impl Wrapper {
 
 fn main() -> anyhow::Result<()> {
     let db = db::Db::init(None)?;
-    // get_yahoo_quotes(db)?;
 
     let now = Utc::now();
     let four_yrs_ago = now - Duration::days(356 * 4);
@@ -206,6 +205,7 @@ fn main() -> anyhow::Result<()> {
     let stdin = io::stdin();
     for maybe_ticker in stdin.lock().lines() {
         let ticker = maybe_ticker?;
+        println!("ticker: {}", &ticker);
         app.request_ticker(&ticker)?;
     }
 
@@ -216,7 +216,6 @@ fn main() -> anyhow::Result<()> {
             Ok(_) => {}
             Err(e) => {
                 eprintln!("{}", e.to_string());
-                // error!("{}", e.to_string());
                 break ();
             }
         };
