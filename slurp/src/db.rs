@@ -1,11 +1,18 @@
-use rusqlite::{params, Connection, Transaction};
+use rusqlite::{Connection, OptionalExtension, Rows, Statement, Transaction, params};
 use std::env;
+use std::iter;
 use std::path::{Path, PathBuf};
 use yahoo_finance_api as yahoo;
 
 const DEFAULT_FILE: &str = ".local/stonks/db.sqlite3";
 
 use crate::quote::Quote;
+
+#[derive(Debug)]
+pub struct QuoteRow {
+    pub id: i32,
+    pub quote: Quote,
+}
 
 pub struct Db {
     conn: Connection,
@@ -30,6 +37,14 @@ fn init_tables(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
     conn.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS daily_idx ON daily (ticker, timestamp)",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS ticker_exchange (
+           ticker TEXT PRIMARY KEY NOT NULL,
+           primary_exchange TEXT
+         )",
         [],
     )?;
 
@@ -89,6 +104,40 @@ impl Db {
         Ok(instance)
     }
 
+    pub fn get_exchange(&self, ticker: &str) -> anyhow::Result<Option<String>> {
+        let row: Option<String> = self.conn.query_row(
+            "SELECT primary_exchange FROM ticker_exchange WHERE ticker = ?", 
+            [ticker],
+            |row| row.get(0),
+            ).optional()?;
+        Ok(row)
+    }
+
+    pub fn get_all_daily_quotes(&self, ticker: &str) -> anyhow::Result<Vec<QuoteRow>> {
+        let mut stmt = self.conn.prepare(
+        "SELECT id, timestamp, open, close, high, low, avg, volume, count
+         FROM daily
+         WHERE ticker = ? 
+         ORDER BY timestamp ASC")?;
+        let mut rows = stmt.query([ticker])?;
+        let mut result = vec![];
+        while let Some(row) = rows.next()? {
+            let id: i32 = row.get(0)?;
+            let timestamp: i64 = row.get(1)?;
+            let open: f64 = row.get(2)?;
+            let close: f64 = row.get(3)?;
+            let high: f64 = row.get(4)?;
+            let low: f64 = row.get(5)?;
+            let avg: f64 = row.get(6)?;
+            let volume: i64 = row.get(7)?;
+            let count: i32 = row.get(8)?;
+            let quote = Quote { timestamp, open, close, high, low, avg, volume, count };
+            result.push(QuoteRow { id, quote });
+            // result.push(QuoteRow::from(row));
+        }
+        Ok(result)
+    }
+
     pub fn insert_daily_quotes(
         &mut self,
         ticker: &str,
@@ -118,7 +167,20 @@ impl Db {
         }
         Ok(tx.commit()?)
     }
-    //
-    //     pub fn get_writer() -> QuoteWriter {
-    //     }
+
+    pub fn insert_calculations(
+        &mut self,
+        table: &str,
+        values: &[(i32, f64)],
+    ) -> anyhow::Result<()> {
+        let tx = self.conn.transaction()?;
+        {
+            let fmt_stmt = format!("INSERT INTO {} (daily_id, value) VALUES (?, ?)", table);
+            let mut stmt = tx.prepare(&fmt_stmt)?;
+            for row in values {
+                stmt.execute(params![row.0, row.1])?;
+            }
+        }
+        Ok(tx.commit()?)
+    }
 }

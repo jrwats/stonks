@@ -3,7 +3,7 @@ use chrono::format::{self, strftime::StrftimeItems, Parsed};
 use chrono::prelude::*;
 use ibtwsapi::core::common::BarData;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Quote {
     pub timestamp: i64,
     pub open: f64,
@@ -16,23 +16,18 @@ pub struct Quote {
 }
 
 fn to_timestamp(daily: &str) -> anyhow::Result<i64> {
-    eprintln!("to_timestamp({})", daily);
     // "20220623" => 1654781400
     let mut p = Parsed::default();
     format::parse(&mut p, daily, StrftimeItems::new("%Y%m%d"))
         .with_context(|| format!("parsing {}", daily))?;
-    eprintln!("parsed YYYYmmdd");
-    p.hour_mod_12 = Some(4); // 4:00
     p.hour_mod_12 = Some(4); // 4:00
     p.hour_div_12 = Some(1); // PM
     p.minute = Some(0);
     p.second = Some(0);
-    eprintln!("Set hour");
 
     // Convert parsed information into a DateTime in the Paris timezone
     let est_tz = FixedOffset::west(5 * 3600);
     let dt = p.to_datetime_with_timezone(&est_tz)?;
-    eprintln!("to_datetime_with_timezone");
     let utc_dt = dt.with_timezone(&Utc);
 
     // let naive_date = NaiveDate::parse_from_str(daily, "%Y%m%d")?;
