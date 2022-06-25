@@ -199,7 +199,7 @@ impl Wrapper {
                     eprintln!("{} for {}", quotes.len(), ticker);
                     self.db.insert_daily_quotes(&ticker, &quotes)?;
                 }
-                self.calculate_metrics(&ticker)?;
+                self.calculate_and_insert_metrics(&ticker)?;
             }
             Some(ServerRspMsg::CommissionReport { commission_report }) => eprintln!(
                 "commission_report -- commission_report: {}",
@@ -218,10 +218,13 @@ impl Wrapper {
         Ok(())
     }
 
-    fn calculate_metrics(&mut self, ticker: &str) -> anyhow::Result<()> {
+    fn calculate_and_insert_metrics(&mut self, ticker: &str) -> anyhow::Result<()> {
         let quotes = self.db.get_all_daily_quotes(ticker)?;
-        self.insert_moving_avgs(200, &quotes)?;
-        self.insert_moving_avgs(50, &quotes)?;
+        self.insert_simple_moving_avgs(200, &quotes)?;
+        self.insert_simple_moving_avgs(50, &quotes)?;
+        for ema_window in [8, 21, 34, 89] {
+            self.insert_emas(ema_window, &quotes)?;
+        }
         Ok(())
     }
 
@@ -239,9 +242,28 @@ impl Wrapper {
         avgs
     }
 
-    fn insert_moving_avgs(&mut self, window: usize, quotes: &[QuoteRow]) -> anyhow::Result<()> {
+    fn insert_simple_moving_avgs(&mut self, window: usize, quotes: &[QuoteRow]) -> anyhow::Result<()> {
         let vals = Self::calculate_moving_avgs(200, quotes);
         let table = format!("sma_{}", window);
+        self.db.insert_calculations(&table, &vals)
+    }
+
+    fn calculate_exp_moving_avgs(window: usize, quotes: &[QuoteRow]) -> Vec<(i32, f64)> {
+        let sum: f64 = quotes[0..window].iter().map(|q| q.quote.close).sum();
+        let mut avg: f64 = sum / (window as f64);
+        let mut avgs = Vec::with_capacity(quotes.len() - window);
+        avgs.push((quotes[window - 1].id, avg));
+        let smoothing: f64 = 2.0 / (window as f64 + 1.0);
+        for quote in quotes[window..].iter() {
+            avg = (quote.quote.close - avg) * smoothing + avg * (1.0 - smoothing);
+            avgs.push((quote.id, avg));
+        }
+        avgs
+    }
+
+    fn insert_emas(&mut self, window: usize, quotes: &[QuoteRow]) -> anyhow::Result<()> {
+        let vals = Self::calculate_exp_moving_avgs(200, quotes);
+        let table = format!("ema_{}", window);
         self.db.insert_calculations(&table, &vals)
     }
 }
