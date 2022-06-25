@@ -1,4 +1,4 @@
-use rusqlite::{Connection, OptionalExtension, Rows, Statement, Transaction, params};
+use rusqlite::{params, Connection, OptionalExtension, Rows, Statement, Transaction};
 use std::env;
 use std::iter;
 use std::path::{Path, PathBuf};
@@ -105,20 +105,24 @@ impl Db {
     }
 
     pub fn get_exchange(&self, ticker: &str) -> anyhow::Result<Option<String>> {
-        let row: Option<String> = self.conn.query_row(
-            "SELECT primary_exchange FROM ticker_exchange WHERE ticker = ?", 
-            [ticker],
-            |row| row.get(0),
-            ).optional()?;
+        let row: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT primary_exchange FROM ticker_exchange WHERE ticker = ?",
+                [ticker],
+                |row| row.get(0),
+            )
+            .optional()?;
         Ok(row)
     }
 
     pub fn get_all_daily_quotes(&self, ticker: &str) -> anyhow::Result<Vec<QuoteRow>> {
         let mut stmt = self.conn.prepare(
-        "SELECT id, timestamp, open, close, high, low, avg, volume, count
+            "SELECT id, timestamp, open, close, high, low, avg, volume, count
          FROM daily
          WHERE ticker = ? 
-         ORDER BY timestamp ASC")?;
+         ORDER BY timestamp ASC",
+        )?;
         let mut rows = stmt.query([ticker])?;
         let mut result = vec![];
         while let Some(row) = rows.next()? {
@@ -131,7 +135,16 @@ impl Db {
             let avg: f64 = row.get(6)?;
             let volume: i64 = row.get(7)?;
             let count: i32 = row.get(8)?;
-            let quote = Quote { timestamp, open, close, high, low, avg, volume, count };
+            let quote = Quote {
+                timestamp,
+                open,
+                close,
+                high,
+                low,
+                avg,
+                volume,
+                count,
+            };
             result.push(QuoteRow { id, quote });
             // result.push(QuoteRow::from(row));
         }

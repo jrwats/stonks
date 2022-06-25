@@ -86,7 +86,10 @@ impl Wrapper {
 
     fn error(&mut self, req_id: i32, error_code: i32, error_string: &str) {
         let maybe_ticker = self.open_requests.get(&req_id);
-        eprintln!("{} => {:?}, {}, {}", req_id, maybe_ticker, error_code, error_string);
+        eprintln!(
+            "{} => {:?}, {}, {}",
+            req_id, maybe_ticker, error_code, error_string
+        );
         if let Some(ticker) = maybe_ticker {
             self.open_requests.remove(&req_id);
             self.request_next_ticker();
@@ -187,7 +190,9 @@ impl Wrapper {
             Some(ServerRspMsg::HistoricalDataEnd { req_id, start, end }) => {
                 eprintln!("end: {} {} {}", req_id, start, end);
                 eprintln!("{} quotes", self.quotes.len());
-                let ticker = self.open_requests.remove(&req_id)
+                let ticker = self
+                    .open_requests
+                    .remove(&req_id)
                     .ok_or_else(|| anyhow::anyhow!("unexpected {}", req_id))?;
                 self.request_next_ticker();
                 let mut tick2quotes: HashMap<String, Vec<Quote>> = HashMap::new();
@@ -242,7 +247,11 @@ impl Wrapper {
         avgs
     }
 
-    fn insert_simple_moving_avgs(&mut self, window: usize, quotes: &[QuoteRow]) -> anyhow::Result<()> {
+    fn insert_simple_moving_avgs(
+        &mut self,
+        window: usize,
+        quotes: &[QuoteRow],
+    ) -> anyhow::Result<()> {
         let vals = Self::calculate_moving_avgs(200, quotes);
         let table = format!("sma_{}", window);
         self.db.insert_calculations(&table, &vals)
@@ -255,7 +264,7 @@ impl Wrapper {
         avgs.push((quotes[window - 1].id, avg));
         let smoothing: f64 = 2.0 / (window as f64 + 1.0);
         for quote in quotes[window..].iter() {
-            avg = (quote.quote.close - avg) * smoothing + avg * (1.0 - smoothing);
+            avg = (quote.quote.close - avg) * smoothing + avg;
             avgs.push((quote.id, avg));
         }
         avgs
@@ -309,13 +318,45 @@ mod test {
     #[test]
     fn test_moving_avgs() {
         let mut id = -1;
-        let mocks: Vec<QuoteRow> = [2.0, 3.0, 4.0, 5.5, 6.0, 7.0].map(|f| {
-            let mut quote = Quote::default();
-            quote.close = f;
-            id += 1;
-            QuoteRow { id, quote }
-        }).into_iter().collect();
+        let mocks: Vec<QuoteRow> = [2.0, 3.0, 4.0, 5.5, 6.0, 7.0]
+            .map(|f| {
+                let mut quote = Quote::default();
+                quote.close = f;
+                id += 1;
+                QuoteRow { id, quote }
+            })
+            .into_iter()
+            .collect();
         let avgs = Wrapper::calculate_moving_avgs(3, &mocks);
-        assert_eq!(avgs, vec![(2, 3.0), (3, 12.5 / 3.0), (4, 15.5 / 3.0), (5, 18.5 / 3.0)]);
+        //  [(2, 3.0), (3, 4.166666666666667), (4, 5.166666666666667), (5, 6.166666666666667)]
+        assert_eq!(
+            avgs,
+            vec![(2, 3.0), (3, 12.5 / 3.0), (4, 15.5 / 3.0), (5, 18.5 / 3.0)]
+        );
+    }
+
+    #[test]
+    fn test_exp_avgs() {
+        let mut id = -1;
+        let mocks: Vec<QuoteRow> = [2.0, 3.0, 4.0, 5.5, 6.0, 7.0]
+            .map(|f| {
+                let mut quote = Quote::default();
+                quote.close = f;
+                id += 1;
+                QuoteRow { id, quote }
+            })
+            .into_iter()
+            .collect();
+        let avgs = Wrapper::calculate_exp_moving_avgs(3, &mocks);
+        // [(2, 3.0), (3, 4.25), (4, 5.125), (5, 6.0625)]
+        assert_eq!(
+            avgs,
+            vec![
+                (2, 3.0),
+                (3, 3.0 + 0.5 * 2.5),
+                (4, 4.25 + 1.75 * 0.5),
+                (5, 5.125 + 1.875 * 0.5)
+            ]
+        );
     }
 }
