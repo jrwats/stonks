@@ -1,19 +1,22 @@
 use chrono::prelude::*;
+use chrono::Duration;
 use std::collections::{HashMap, VecDeque};
+use std::io::{self, prelude::*};
 use std::time;
+use tokio_test;
 
 use ibtwsapi::core::client::EClient;
 use ibtwsapi::core::contract::Contract;
+use ibtwsapi::core::errors::*;
 use ibtwsapi::core::messages::ServerRspMsg;
 use log::{error, info};
 use std::thread;
 
-use crate::db::Db;
 use crate::db::QuoteRow;
 use crate::quote::Quote;
 
 #[derive(Debug)]
-pub struct TickerQuote {
+struct TickerQuote {
     ticker: String,
     quote: Quote,
 }
@@ -30,9 +33,9 @@ fn us_stock(stk: &str, primary_exchange: Option<String>) -> Contract {
     contract
 }
 
-pub struct App {
+struct App {
     pub client: EClient,
-    pub db: Db,
+    pub db: db::Db,
     pub ticker_request_queue: VecDeque<String>,
     pub open_requests: HashMap<i32, String>,
     pub quotes: VecDeque<TickerQuote>,
@@ -41,8 +44,8 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(db: Db) -> Self {
-        App {
+    pub fn new(db: db::Db) -> Self {
+        Wrapper {
             client: EClient::new(),
             db,
             open_requests: HashMap::new(),
@@ -54,12 +57,12 @@ impl App {
     }
 
     fn error(&mut self, req_id: i32, error_code: i32, error_string: &str) {
-        let ticker = self.open_requests.get(&req_id);
+        let maybe_ticker = self.open_requests.get(&req_id);
         eprintln!(
             "{} => {:?}, {}, {}",
-            req_id, ticker, error_code, error_string
+            req_id, maybe_ticker, error_code, error_string
         );
-        if ticker.is_some() {
+        if let Some(ticker) = maybe_ticker {
             self.open_requests.remove(&req_id);
             self.request_next_ticker();
         }
@@ -274,7 +277,7 @@ mod test {
             })
             .into_iter()
             .collect();
-        let avgs =App::calculate_moving_avgs(3, &mocks);
+        let avgs = Wrapper::calculate_moving_avgs(3, &mocks);
         //  [(2, 3.0), (3, 4.166666666666667), (4, 5.166666666666667), (5, 6.166666666666667)]
         assert_eq!(
             avgs,
@@ -294,7 +297,7 @@ mod test {
             })
             .into_iter()
             .collect();
-        let avgs = App::calculate_exp_moving_avgs(3, &mocks);
+        let avgs = Wrapper::calculate_exp_moving_avgs(3, &mocks);
         assert_eq!(
             avgs,
             [

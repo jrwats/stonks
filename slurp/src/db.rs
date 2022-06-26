@@ -1,8 +1,6 @@
-use rusqlite::{params, Connection, OptionalExtension, Rows, Statement, Transaction};
+use rusqlite::{params, Connection, OptionalExtension};
 use std::env;
-use std::iter;
 use std::path::{Path, PathBuf};
-use yahoo_finance_api as yahoo;
 
 const DEFAULT_FILE: &str = ".local/stonks/db.sqlite3";
 
