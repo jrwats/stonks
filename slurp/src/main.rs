@@ -24,8 +24,8 @@ fn main() -> anyhow::Result<()> {
     }
 
     let mut count = 0;
-    while !app.ticker_request_queue.is_empty() && count < 20 {
-        app.request_next_ticker();
+    while !app.ticker_request_queue.is_empty() && count < 20 { // 20 concurrent requests
+        app.request_next_ticker()?;
         count += 1;
     }
 

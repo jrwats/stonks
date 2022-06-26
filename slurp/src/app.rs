@@ -8,8 +8,7 @@ use ibtwsapi::core::messages::ServerRspMsg;
 use log::{error, info};
 use std::thread;
 
-use crate::db::Db;
-use crate::db::QuoteRow;
+use crate::db::{self, Db, QuoteRow};
 use crate::quote::Quote;
 
 #[derive(Debug)]
@@ -61,7 +60,7 @@ impl App {
         );
         if ticker.is_some() {
             self.open_requests.remove(&req_id);
-            self.request_next_ticker();
+            self.request_next_ticker().ok();
         }
         error!(
             "req_id: {} ,error_code: {} , error_string: {}",
@@ -98,12 +97,12 @@ impl App {
         self.ticker_request_queue.push_back(ticker);
     }
 
-    pub fn request_next_ticker(&mut self) -> bool {
+    pub fn request_next_ticker(&mut self) -> anyhow::Result<bool> {
         if let Some(ticker) = self.ticker_request_queue.pop_front() {
-            self.request_ticker(&ticker);
-            return true;
+            self.request_ticker(&ticker)?;
+            return Ok(true);
         }
-        false
+        Ok(false)
     }
 
     pub fn process_ib_response(&mut self) -> anyhow::Result<()> {
@@ -163,7 +162,7 @@ impl App {
                     .open_requests
                     .remove(&req_id)
                     .ok_or_else(|| anyhow::anyhow!("unexpected {}", req_id))?;
-                self.request_next_ticker();
+                self.request_next_ticker()?;
                 let mut tick2quotes: HashMap<String, Vec<Quote>> = HashMap::new();
                 for tq in self.quotes.drain(0..) {
                     let qs = tick2quotes.entry(tq.ticker).or_insert(vec![]);
@@ -194,9 +193,10 @@ impl App {
 
     fn calculate_and_insert_metrics(&mut self, ticker: &str) -> anyhow::Result<()> {
         let quotes = self.db.get_all_daily_quotes(ticker)?;
-        self.insert_simple_moving_avgs(200, &quotes)?;
-        self.insert_simple_moving_avgs(50, &quotes)?;
-        for ema_window in [8, 21, 34, 89] {
+        for ema_window in db::SMA_WINDOWS {
+            self.insert_simple_moving_avgs(ema_window, &quotes)?;
+        }
+        for ema_window in db::EMA_WINDOWS {
             self.insert_emas(ema_window, &quotes)?;
         }
         Ok(())

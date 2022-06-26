@@ -6,6 +6,9 @@ const DEFAULT_FILE: &str = ".local/stonks/db.sqlite3";
 
 use crate::quote::Quote;
 
+pub const SMA_WINDOWS: [usize; 2] = [50, 200];
+pub const EMA_WINDOWS: [usize; 4] = [8, 21, 34, 89];
+
 #[derive(Debug)]
 pub struct QuoteRow {
     pub id: i32,
@@ -46,7 +49,7 @@ fn init_tables(conn: &mut Connection) -> rusqlite::Result<()> {
         [],
     )?;
 
-    for ema_period in [8, 21, 34, 89] {
+    for ema_period in EMA_WINDOWS {
         let sql = format!(
             r#"CREATE TABLE IF NOT EXISTS ema_{} (
            daily_id INTEGER,
@@ -58,7 +61,7 @@ fn init_tables(conn: &mut Connection) -> rusqlite::Result<()> {
         conn.execute(&sql, [])?;
     }
 
-    for sma_period in [50, 200] {
+    for sma_period in SMA_WINDOWS {
         let sql = format!(
             r#"CREATE TABLE IF NOT EXISTS sma_{} (
            daily_id INTEGER,
