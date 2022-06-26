@@ -52,7 +52,7 @@ fn init_tables(conn: &mut Connection) -> rusqlite::Result<()> {
     for ema_period in EMA_WINDOWS {
         let sql = format!(
             r#"CREATE TABLE IF NOT EXISTS ema_{} (
-           daily_id INTEGER,
+           daily_id INTEGER PRIMARY KEY NOT NULL,
            value REAL,
            FOREIGN KEY ([daily_id]) REFERENCES "daily" ([id])
          )"#,
@@ -64,7 +64,7 @@ fn init_tables(conn: &mut Connection) -> rusqlite::Result<()> {
     for sma_period in SMA_WINDOWS {
         let sql = format!(
             r#"CREATE TABLE IF NOT EXISTS sma_{} (
-           daily_id INTEGER,
+           daily_id INTEGER PRIMARY KEY NOT NULL,
            value REAL,
            FOREIGN KEY ([daily_id]) REFERENCES "daily" ([id])
          )"#,
@@ -189,7 +189,10 @@ impl Db {
     ) -> anyhow::Result<()> {
         let tx = self.conn.transaction()?;
         {
-            let fmt_stmt = format!("INSERT INTO {} (daily_id, value) VALUES (?, ?)", table);
+            let fmt_stmt = format!(
+                "INSERT OR REPLACE INTO {} (daily_id, value) VALUES (?, ?)",
+                table
+            );
             let mut stmt = tx.prepare(&fmt_stmt)?;
             for row in values {
                 stmt.execute(params![row.0, row.1])?;

@@ -25,9 +25,9 @@ fn to_timestamp(daily: &str) -> anyhow::Result<i64> {
     p.minute = Some(0);
     p.second = Some(0);
 
-    // Convert parsed information into a DateTime in the Paris timezone
-    let est_tz = FixedOffset::west(5 * 3600);
-    let dt = p.to_datetime_with_timezone(&est_tz)?;
+    // Convert parsed information into a DateTime in the EDT timezone
+    let edt_tz = FixedOffset::west(4 * 3600);
+    let dt = p.to_datetime_with_timezone(&edt_tz)?;
     let utc_dt = dt.with_timezone(&Utc);
 
     // let naive_date = NaiveDate::parse_from_str(daily, "%Y%m%d")?;

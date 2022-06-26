@@ -191,8 +191,14 @@ impl App {
         Ok(())
     }
 
-    fn calculate_and_insert_metrics(&mut self, ticker: &str) -> anyhow::Result<()> {
+    pub fn calculate_and_insert_metrics(&mut self, ticker: &str) -> anyhow::Result<()> {
         let quotes = self.db.get_all_daily_quotes(ticker)?;
+        // eprintln!("{} / {} - {} / {}",
+        //           quotes[0].quote.timestamp,
+        //           quotes[0].id,
+        //           quotes[quotes.len()-1].quote.timestamp,
+        //           quotes[quotes.len()-1].id,
+        //           );
         for ema_window in db::SMA_WINDOWS {
             self.insert_simple_moving_avgs(ema_window, &quotes)?;
         }
@@ -203,6 +209,10 @@ impl App {
     }
 
     fn calculate_moving_avgs(window: usize, quotes: &[QuoteRow]) -> Vec<(i32, f64)> {
+        if quotes.is_empty() || window > quotes.len() {
+            return vec![];
+        }
+
         let mut sum: f64 = quotes[0..window].iter().map(|q| q.quote.close).sum();
         let mut avgs = Vec::with_capacity(quotes.len() - window);
         avgs.push((quotes[window - 1].id, sum / (window as f64)));
@@ -221,7 +231,7 @@ impl App {
         window: usize,
         quotes: &[QuoteRow],
     ) -> anyhow::Result<()> {
-        let vals = Self::calculate_moving_avgs(200, quotes);
+        let vals = Self::calculate_moving_avgs(window, quotes);
         let table = format!("sma_{}", window);
         self.db.insert_calculations(&table, &vals)
     }
@@ -252,7 +262,7 @@ impl App {
     }
 
     fn insert_emas(&mut self, window: usize, quotes: &[QuoteRow]) -> anyhow::Result<()> {
-        let vals = Self::calculate_exp_moving_avgs(200, quotes);
+        let vals = Self::calculate_exp_moving_avgs(window, quotes);
         let table = format!("ema_{}", window);
         self.db.insert_calculations(&table, &vals)
     }
@@ -274,7 +284,7 @@ mod test {
             })
             .into_iter()
             .collect();
-        let avgs =App::calculate_moving_avgs(3, &mocks);
+        let avgs = App::calculate_moving_avgs(3, &mocks);
         //  [(2, 3.0), (3, 4.166666666666667), (4, 5.166666666666667), (5, 6.166666666666667)]
         assert_eq!(
             avgs,
