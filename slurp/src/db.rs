@@ -15,6 +15,23 @@ pub struct QuoteRow {
     pub quote: Quote,
 }
 
+#[derive(Debug)]
+pub struct MetricRow {
+    pub id: i32,
+    pub quote: Quote,
+    pub metrics:  Metrics,
+}
+
+#[derive(Debug)]
+pub struct Metrics {
+    pub ema_8: f64,
+    pub ema_21: f64,
+    pub ema_34: f64,
+    pub ema_89: Option<f64>,
+    pub sma_50: f64,
+    pub sma_200: Option<f64>,
+}
+
 pub struct Db {
     conn: Connection,
 }
@@ -148,6 +165,59 @@ impl Db {
             };
             result.push(QuoteRow { id, quote });
             // result.push(QuoteRow::from(row));
+        }
+        Ok(result)
+    }
+
+    pub fn get_metrics_for_ticker(&self, ticker: &str, limit: usize) -> anyhow::Result<Vec<MetricRow>> {
+        let mut stmt = self.conn.prepare("
+            SELECT * FROM (
+              SELECT 
+                id, timestamp, open, close, high, low, avg, volume, count,
+                e8.value as ema_8, e21.value as ema_21, e34.value as ema_34,
+                e89.value as ema_89, s50.value as sma_50, s200.value as sma_200
+              FROM daily d
+              LEFT OUTER JOIN ema_8 e8     ON d.id = e8.daily_id
+              LEFT OUTER JOIN ema_21 e21   ON d.id = e21.daily_id
+              LEFT OUTER JOIN ema_34 e34   ON d.id = e34.daily_id
+              LEFT OUTER JOIN ema_89 e89   ON d.id = e89.daily_id
+              LEFT OUTER JOIN sma_50 s50   ON d.id = s50.daily_id
+              LEFT OUTER JOIN sma_200 s200 ON d.id = s200.daily_id
+              WHERE ticker = ?
+              ORDER BY timestamp DESC
+              LIMIT ?
+            ) ORDER BY timestamp ASC"
+        )?;
+        let mut rows = stmt.query(params![ticker, limit])?;
+        let mut result = Vec::with_capacity(limit);
+        while let Some(row) = rows.next()? {
+            let id: i32 = row.get(0)?;
+            let timestamp: i64 = row.get(1)?;
+            let open: f64 = row.get(2)?;
+            let close: f64 = row.get(3)?;
+            let high: f64 = row.get(4)?;
+            let low: f64 = row.get(5)?;
+            let avg: f64 = row.get(6)?;
+            let volume: i64 = row.get(7)?;
+            let count: i32 = row.get(8)?;
+            let quote = Quote {
+                timestamp,
+                open,
+                close,
+                high,
+                low,
+                avg,
+                volume,
+                count,
+            };
+            let ema_8: f64 = row.get(9)?;
+            let ema_21: f64 = row.get(10)?;
+            let ema_34: f64 = row.get(11)?;
+            let ema_89: Option<f64> = row.get(12)?;
+            let sma_50: f64 = row.get(13)?;
+            let sma_200: Option<f64> = row.get(14)?;
+            let metrics = Metrics { ema_8, ema_21, ema_34, ema_89, sma_50, sma_200 };
+            result.push(MetricRow { id, quote, metrics });
         }
         Ok(result)
     }

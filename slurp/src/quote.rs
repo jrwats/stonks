@@ -61,7 +61,7 @@ impl From<yahoo_finance_api::Quote> for Quote {
             high: yq.high,
             low: yq.low,
             open: yq.open,
-            close: yq.adjclose,
+            close: yq.adjclose, // accounts for splits AND dividends!
             volume: yq.volume as i64,
             avg: -1.0,
             count: -1,

@@ -1,8 +1,7 @@
 use std::io::{self, prelude::*};
-use std::time;
 use structopt::StructOpt;
 
-use log::{error, info};
+// use log::{error, info};
 
 mod app;
 mod cli;
@@ -48,6 +47,26 @@ fn main() -> anyhow::Result<()> {
         }
         Command::Incremental => {
             eprintln!("Unimplemented");
+        }
+        Command::TrendCandidates => {
+            for io_ticker in io::stdin().lock().lines() {
+                let ticker = io_ticker?;
+
+                // let 2 months of data for
+                let metric_rows = db.get_metrics_for_ticker(&ticker, 42)?;
+                let bull_trend = metric_rows.iter().all(|mr| {
+                    let m = &mr.metrics;
+                    m.ema_8 > m.ema_21 && m.ema_21 > m.ema_34 && m.ema_34 > m.ema_89.unwrap_or(f64::NEG_INFINITY)
+                });
+                let bear_trend = metric_rows.iter().all(|mr| {
+                    let m = &mr.metrics;
+                    m.ema_8 < m.ema_21 && m.ema_21 < m.ema_34 && m.ema_34 < m.ema_89.unwrap_or(f64::INFINITY)
+                });
+                if bull_trend || bear_trend {
+                    println!("{}", ticker);
+                }
+
+            }
         }
         Command::CalculateMetrics => {
             let mut app = App::new(db);
