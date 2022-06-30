@@ -19,7 +19,7 @@ pub struct QuoteRow {
 pub struct MetricRow {
     pub id: i32,
     pub quote: Quote,
-    pub metrics:  Metrics,
+    pub metrics: Metrics,
 }
 
 #[derive(Debug)]
@@ -169,8 +169,13 @@ impl Db {
         Ok(result)
     }
 
-    pub fn get_metrics_for_ticker(&self, ticker: &str, limit: usize) -> anyhow::Result<Vec<MetricRow>> {
-        let mut stmt = self.conn.prepare("
+    pub fn get_metrics_for_ticker(
+        &self,
+        ticker: &str,
+        limit: usize,
+    ) -> anyhow::Result<Vec<MetricRow>> {
+        let mut stmt = self.conn.prepare(
+            "
             SELECT * FROM (
               SELECT 
                 id, timestamp, open, close, high, low, avg, volume, count,
@@ -186,7 +191,7 @@ impl Db {
               WHERE ticker = ?
               ORDER BY timestamp DESC
               LIMIT ?
-            ) ORDER BY timestamp ASC"
+            ) ORDER BY timestamp ASC",
         )?;
         let mut rows = stmt.query(params![ticker, limit])?;
         let mut result = Vec::with_capacity(limit);
@@ -216,7 +221,14 @@ impl Db {
             let ema_89: Option<f64> = row.get(12)?;
             let sma_50: f64 = row.get(13)?;
             let sma_200: Option<f64> = row.get(14)?;
-            let metrics = Metrics { ema_8, ema_21, ema_34, ema_89, sma_50, sma_200 };
+            let metrics = Metrics {
+                ema_8,
+                ema_21,
+                ema_34,
+                ema_89,
+                sma_50,
+                sma_200,
+            };
             result.push(MetricRow { id, quote, metrics });
         }
         Ok(result)
