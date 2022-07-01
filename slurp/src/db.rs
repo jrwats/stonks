@@ -213,7 +213,7 @@ impl Db {
             ) ORDER BY timestamp ASC",
         )?;
         let mut rows = stmt.query(params![ticker, limit.unwrap_or(9999)])?;
-        let mut result = Vec::with_capacity(limit);
+        let mut result = vec![];
         while let Some(row) = rows.next()? {
             let id: i32 = row.get(0)?;
             let timestamp: i64 = row.get(1)?;
