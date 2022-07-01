@@ -191,7 +191,7 @@ impl Db {
     pub fn get_metrics_for_ticker(
         &self,
         ticker: &str,
-        limit: usize,
+        limit: Option<usize>,
     ) -> anyhow::Result<Vec<MetricRow>> {
         let mut stmt = self.conn.prepare(
             "
@@ -212,7 +212,7 @@ impl Db {
               LIMIT ?
             ) ORDER BY timestamp ASC",
         )?;
-        let mut rows = stmt.query(params![ticker, limit])?;
+        let mut rows = stmt.query(params![ticker, limit.unwrap_or(9999)])?;
         let mut result = Vec::with_capacity(limit);
         while let Some(row) = rows.next()? {
             let id: i32 = row.get(0)?;

@@ -74,7 +74,7 @@ fn main() -> anyhow::Result<()> {
 
                 // get 2 months of data for
                 eprintln!("{}", ticker);
-                let metric_rows = db.get_metrics_for_ticker(&ticker, *ema_period)?;
+                let metric_rows = db.get_metrics_for_ticker(&ticker, None)?;
                 eprintln!("Gotten");
                 if metric_rows.is_empty() {
                     eprintln!("No rows for {}", ticker);

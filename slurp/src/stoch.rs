@@ -51,6 +51,7 @@ pub fn get_directional_indicators(quotes: &[Quote], period: usize) -> Vec<f64> {
     let calc = |(idx, dm): (usize, &f64)| 100.0 * dm / rma_atrs[idx];
     let pos_dis: Vec<f64> = rma_pos_dms.iter().enumerate().map(calc).collect();
     let neg_dis: Vec<f64> = rma_neg_dms.iter().enumerate().map(calc).collect();
+    eprintln!("quotes len: {}", quotes.len());
     eprintln!("rma_atr: {}", rma_atrs.last().unwrap());
     eprintln!("pdi: {}", pos_dms.last().unwrap());
     eprintln!("ndi: {}", neg_dms.last().unwrap());
@@ -58,6 +59,10 @@ pub fn get_directional_indicators(quotes: &[Quote], period: usize) -> Vec<f64> {
     eprintln!("rndi: {}", rma_neg_dms.last().unwrap());
     eprintln!("pos_dis: {}", pos_dis.last().unwrap());
     eprintln!("neg_dis: {}", neg_dis.last().unwrap());
+    eprintln!("atrs:");
+    for atr in rma_atrs.iter() {
+        eprintln!("{}", atr);
+    }
     pos_dis.iter().enumerate().map(|(idx, pdi)| { 
         let ndi = neg_dis[idx];
         let sum = pdi + ndi;
