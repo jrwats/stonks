@@ -7,7 +7,10 @@ pub fn get_trs(quotes: &[Quote]) -> Vec<f64> {
     }
     let mut trs = Vec::with_capacity(quotes.len() - 1);
     for (idx, q) in quotes[1..].iter().enumerate() {
-        let inter_tr = f64::max(f64::abs(q.high - quotes[idx].close), f64::abs(q.low - quotes[idx].close));
+        let inter_tr = f64::max(
+            f64::abs(q.high - quotes[idx].close),
+            f64::abs(q.low - quotes[idx].close),
+        );
         let tr = f64::max(q.high - q.low, inter_tr);
         trs.push(tr);
     }
@@ -36,7 +39,7 @@ pub fn get_dirmoves(quotes: &[Quote], rma_atrs: &[f64]) -> Vec<f64> {
 
 pub fn get_adxs(quotes: &[Quote], dilen: usize, adxlen: usize) -> Vec<f64> {
     if quotes.len() < dilen {
-        return vec![]
+        return vec![];
     }
     let trs = get_trs(quotes);
     let rma_atrs = get_rmas(&trs, dilen);

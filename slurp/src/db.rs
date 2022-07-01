@@ -71,7 +71,7 @@ fn init_tables(conn: &mut Connection) -> rusqlite::Result<()> {
             r#"CREATE TABLE IF NOT EXISTS ema_{} (
            daily_id INTEGER PRIMARY KEY NOT NULL,
            value REAL,
-           FOREIGN KEY ([daily_id]) REFERENCES "daily" ([id])
+           FOREIGN KEY ([daily_id]) REFERENCES "daily" ([id]) ON DELETE CASCADE
          )"#,
             ema_period,
         );
@@ -83,7 +83,7 @@ fn init_tables(conn: &mut Connection) -> rusqlite::Result<()> {
             r#"CREATE TABLE IF NOT EXISTS sma_{} (
            daily_id INTEGER PRIMARY KEY NOT NULL,
            value REAL,
-           FOREIGN KEY ([daily_id]) REFERENCES "daily" ([id])
+           FOREIGN KEY ([daily_id]) REFERENCES "daily" ([id]) ON DELETE CASCADE
          )"#,
             sma_period,
         );
@@ -151,7 +151,7 @@ impl Db {
         let mut stmt = self.conn.prepare(
             "SELECT id, timestamp, open, close, high, low, avg, volume, count
          FROM daily
-         WHERE ticker = ? 
+         WHERE ticker = ?
          ORDER BY timestamp ASC",
         )?;
         let mut rows = stmt.query([ticker])?;
@@ -166,13 +166,25 @@ impl Db {
         let mut stmt = self.conn.prepare(
             "SELECT id, timestamp, open, close, high, low, avg, volume, count
          FROM daily
-         WHERE ticker = ? 
+         WHERE ticker = ?
          ORDER BY timestamp DESC
-         LIMIT 1"
+         LIMIT 1",
         )?;
-        let quote_row = stmt.query_row([ticker], |row| { 
-            Ok(row_to_quote(row)?)
-        })?;
+        let quote_row = stmt.query_row([ticker], |row| Ok(row_to_quote(row)?))?;
+        Ok(quote_row)
+    }
+
+    pub fn get_quote_with_timesatmp(
+        &self,
+        ticker: &str,
+        timestamp: i64,
+    ) -> anyhow::Result<QuoteRow> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, timestamp, open, close, high, low, avg, volume, count
+         FROM daily
+         WHERE ticker = ? AND timestamp = ?",
+        )?;
+        let quote_row = stmt.query_row(params![ticker, timestamp], |row| Ok(row_to_quote(row)?))?;
         Ok(quote_row)
     }
 
@@ -184,7 +196,7 @@ impl Db {
         let mut stmt = self.conn.prepare(
             "
             SELECT * FROM (
-              SELECT 
+              SELECT
                 id, timestamp, open, close, high, low, avg, volume, count,
                 e8.value as ema_8, e21.value as ema_21, e34.value as ema_34,
                 e89.value as ema_89, s50.value as sma_50, s200.value as sma_200
@@ -249,9 +261,9 @@ impl Db {
         let tx = self.conn.transaction()?;
         {
             let mut stmt = tx.prepare(
-                "INSERT INTO daily 
-                  (ticker, timestamp, high, low, open, close, avg, volume, count) 
-                VALUES 
+                "INSERT OR REPLACE INTO daily
+                  (ticker, timestamp, open, close, high, low, avg, volume, count)
+                VALUES
                   (?,      ?,         ?,    ?,   ?,    ?,     ?,   ?,      ?)",
             )?;
             for quote in daily_quotes {

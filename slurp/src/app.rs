@@ -95,26 +95,39 @@ impl App {
         )?)
     }
 
-    pub fn request_next_incremental_ticker(&mut self) -> anyhow::Result<()> {
+    pub fn request_next_incremental_ticker(&mut self) -> anyhow::Result<bool> {
         if let Some(ticker) = self.ticker_request_queue.pop_front() {
             let last_quote = self.db.get_last_quote(&ticker)?;
-            self.request_ticker(&ticker)?;
-
-            // Ok(self.client.req_historical_data(
-            //         self.req_id,
-            //         &contract,
-            //         query_time.as_str(),
-            //         "2 Y",
-            //         "1 day",
-            //         "TRADES",
-            //         1,
-            //         1,
-            //         false,
-            //         vec![],
-            //         )?)
-            return Ok(());
+            let dt = Utc::now();
+            let query_time = dt.format("%Y%m%d %H:%M:%S").to_string();
+            let last_quote = Utc.timestamp(last_quote.quote.timestamp, 0);
+            let num_days = (dt - last_quote).num_days();
+            if num_days == 0 {
+                return Ok(true);
+            }
+            let day_str = format!("{} D", num_days);
+            self.req_id += 1;
+            let contract = us_stock(&ticker, self.db.get_exchange(&ticker)?);
+            eprintln!(
+                "requesting '{}' for {}, req_id: {}",
+                &day_str, &ticker, self.req_id
+            );
+            self.open_requests.insert(self.req_id, ticker.to_string());
+            self.client.req_historical_data(
+                self.req_id,
+                &contract,
+                query_time.as_str(),
+                &day_str,
+                "1 day",
+                "TRADES",
+                1,
+                1,
+                false,
+                vec![],
+            )?;
+            return Ok(true);
         }
-        Ok(())
+        Ok(false)
     }
 
     pub fn add_ticker_to_request_queue(&mut self, ticker: String) {
@@ -177,6 +190,7 @@ impl App {
                     ticker: ticker.clone(),
                     quote,
                 };
+                eprintln!("tq: {:?}", tq);
                 self.quotes.push_back(tq);
             }
             Some(ServerRspMsg::HistoricalDataEnd { req_id, start, end }) => {
@@ -193,10 +207,30 @@ impl App {
                     qs.push(tq.quote);
                 }
                 for (ticker, quotes) in tick2quotes {
-                    eprintln!("{} for {}", quotes.len(), ticker);
+                    if self.incremental {
+                        // check for updated close numbers and request new 2-year data if so
+                        let first_quote = &quotes[0];
+                        let cached_quote = self
+                            .db
+                            .get_quote_with_timesatmp(&ticker, quotes[0].timestamp)?;
+                        if cached_quote.quote.close != first_quote.close {
+                            eprintln!(
+                                "{} != {} for {}",
+                                cached_quote.quote.close, first_quote.close, ticker
+                            );
+                        } else {
+                            eprintln!(
+                                "{} == {} for {}",
+                                cached_quote.quote.close, first_quote.close, ticker
+                            );
+                        }
+                    }
+                    eprintln!("inserting {:?}", quotes);
                     self.db.insert_daily_quotes(&ticker, &quotes)?;
                 }
+                let start = time::Instant::now();
                 self.calculate_and_insert_metrics(&ticker)?;
+                eprintln!("calculate & insert metrics in: {:?}", start.elapsed());
             }
             Some(ServerRspMsg::CommissionReport { commission_report }) => eprintln!(
                 "commission_report -- commission_report: {}",

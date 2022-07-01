@@ -36,13 +36,12 @@ fn main() -> anyhow::Result<()> {
             for io_ticker in io::stdin().lock().lines() {
                 let ticker = io_ticker?;
                 app.add_ticker_to_request_queue(ticker);
-
-                let mut count = 0;
-                while !app.ticker_request_queue.is_empty() && count < 20 {
-                    // 20 concurrent requests
-                    app.request_next_ticker()?;
-                    count += 1;
-                }
+            }
+            let mut count = 0;
+            while !app.ticker_request_queue.is_empty() && count < 20 {
+                // 20 concurrent requests
+                app.request_next_ticker()?;
+                count += 1;
             }
             wait_loop(app);
         }
@@ -53,13 +52,11 @@ fn main() -> anyhow::Result<()> {
             for io_ticker in io::stdin().lock().lines() {
                 let ticker = io_ticker?;
                 app.add_ticker_to_request_queue(ticker);
-
-                let mut count = 0;
-                while !app.ticker_request_queue.is_empty() && count < 20 {
-                    // 20 concurrent requests
-                    app.request_next_incremental_ticker()?;
-                    count += 1;
-                }
+            }
+            let mut count = 0;
+            while !app.ticker_request_queue.is_empty() && count < 20 {
+                app.request_next_incremental_ticker()?;
+                count += 1;
             }
             wait_loop(app);
         }
