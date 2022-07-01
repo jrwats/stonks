@@ -103,6 +103,8 @@ impl App {
             let last_quote = Utc.timestamp(last_quote.quote.timestamp, 0);
             let num_days = (dt - last_quote).num_days();
             if num_days == 0 {
+                eprintln!("skipping up-to-date {}", &ticker);
+                self.request_next_incremental_ticker()?;
                 return Ok(true);
             }
             let day_str = format!("{} D", num_days);
@@ -200,7 +202,11 @@ impl App {
                     .open_requests
                     .remove(&req_id)
                     .ok_or_else(|| anyhow::anyhow!("unexpected {}", req_id))?;
-                self.request_next_ticker()?;
+                if self.incremental {
+                    self.request_next_incremental_ticker()?;
+                } else {
+                    self.request_next_ticker()?;
+                }
                 let mut tick2quotes: HashMap<String, Vec<Quote>> = HashMap::new();
                 for tq in self.quotes.drain(0..) {
                     let qs = tick2quotes.entry(tq.ticker).or_insert(vec![]);
@@ -212,7 +218,7 @@ impl App {
                         let first_quote = &quotes[0];
                         let cached_quote = self
                             .db
-                            .get_quote_with_timesatmp(&ticker, quotes[0].timestamp)?;
+                            .get_quote_with_timestamp(&ticker, quotes[0].timestamp)?;
                         if cached_quote.quote.close != first_quote.close {
                             eprintln!(
                                 "{} != {} for {}",

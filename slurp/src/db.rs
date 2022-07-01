@@ -174,7 +174,7 @@ impl Db {
         Ok(quote_row)
     }
 
-    pub fn get_quote_with_timesatmp(
+    pub fn get_quote_with_timestamp(
         &self,
         ticker: &str,
         timestamp: i64,
