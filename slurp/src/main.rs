@@ -30,7 +30,7 @@ fn main() -> anyhow::Result<()> {
     let args = Args::from_args();
     match args.command {
         Command::Full => {
-            let mut app = App::new(db);
+            let mut app = App::new(db, false);
             // port 7497 for TWS or 4001 for IB Gateway, depending on the port you have set
             app.client.connect("127.0.0.1", 4001, 7274605)?;
             for io_ticker in io::stdin().lock().lines() {
@@ -47,7 +47,21 @@ fn main() -> anyhow::Result<()> {
             wait_loop(app);
         }
         Command::Incremental => {
-            eprintln!("Unimplemented");
+            let mut app = App::new(db, true);
+            // port 7497 for TWS or 4001 for IB Gateway, depending on the port you have set
+            app.client.connect("127.0.0.1", 4001, 7274605)?;
+            for io_ticker in io::stdin().lock().lines() {
+                let ticker = io_ticker?;
+                app.add_ticker_to_request_queue(ticker);
+
+                let mut count = 0;
+                while !app.ticker_request_queue.is_empty() && count < 20 {
+                    // 20 concurrent requests
+                    app.request_next_incremental_ticker()?;
+                    count += 1;
+                }
+            }
+            wait_loop(app);
         }
         Command::TrendCandidates {
             ref ema_period,
@@ -87,7 +101,7 @@ fn main() -> anyhow::Result<()> {
             }
         }
         Command::CalculateMetrics => {
-            let mut app = App::new(db);
+            let mut app = App::new(db, false);
             for io_ticker in io::stdin().lock().lines() {
                 let ticker = io_ticker?;
                 app.calculate_and_insert_metrics(&ticker)?;

@@ -24,7 +24,7 @@ pub fn get_rmas(vals: &[f64], period: usize) -> Vec<f64> {
     let alpha = 1f64 / period as f64;
     rmas.push(avg);
     for val in vals[period..].iter() {
-        avg = val * alpha + (1.0 - alpha) * avg;
+        avg += (val - avg) * alpha;
         rmas.push(avg);
     }
     rmas
@@ -40,7 +40,8 @@ pub fn get_adxs(quotes: &[Quote], dilen: usize, adxlen: usize) -> Vec<f64> {
     }
     let trs = get_trs(quotes);
     let rma_atrs = get_rmas(&trs, dilen);
-    let dir_moves = get_dirmoves(quotes, rma_atrs);
+    let dir_moves = get_dirmoves(quotes, &rma_atrs);
+    vec![] // TODO
 }
 
 pub fn get_smas(vals: &[f64], period: usize) -> Vec<f64> {

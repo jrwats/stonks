@@ -101,15 +101,28 @@ fn ensure_parent(db_path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-// struct QuoteWriter<'a> {
-//     tx: Transaction<'a>,
-//     stmt:
-// }
-//
-// impl QuoteWriter<'a> {
-//     pub fn insert_row(q: &Quote) -> anyhow::Result<()> {
-//     }
-// }
+fn row_to_quote(row: &rusqlite::Row) -> rusqlite::Result<QuoteRow> {
+    let id: i32 = row.get(0)?;
+    let timestamp: i64 = row.get(1)?;
+    let open: f64 = row.get(2)?;
+    let close: f64 = row.get(3)?;
+    let high: f64 = row.get(4)?;
+    let low: f64 = row.get(5)?;
+    let avg: f64 = row.get(6)?;
+    let volume: i64 = row.get(7)?;
+    let count: i32 = row.get(8)?;
+    let quote = Quote {
+        timestamp,
+        open,
+        close,
+        high,
+        low,
+        avg,
+        volume,
+        count,
+    };
+    Ok(QuoteRow { id, quote })
+}
 
 impl Db {
     pub fn init(file: Option<PathBuf>) -> anyhow::Result<Self> {
@@ -144,29 +157,23 @@ impl Db {
         let mut rows = stmt.query([ticker])?;
         let mut result = vec![];
         while let Some(row) = rows.next()? {
-            let id: i32 = row.get(0)?;
-            let timestamp: i64 = row.get(1)?;
-            let open: f64 = row.get(2)?;
-            let close: f64 = row.get(3)?;
-            let high: f64 = row.get(4)?;
-            let low: f64 = row.get(5)?;
-            let avg: f64 = row.get(6)?;
-            let volume: i64 = row.get(7)?;
-            let count: i32 = row.get(8)?;
-            let quote = Quote {
-                timestamp,
-                open,
-                close,
-                high,
-                low,
-                avg,
-                volume,
-                count,
-            };
-            result.push(QuoteRow { id, quote });
-            // result.push(QuoteRow::from(row));
+            result.push(row_to_quote(row)?);
         }
         Ok(result)
+    }
+
+    pub fn get_last_quote(&self, ticker: &str) -> anyhow::Result<QuoteRow> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, timestamp, open, close, high, low, avg, volume, count
+         FROM daily
+         WHERE ticker = ? 
+         ORDER BY timestamp DESC
+         LIMIT 1"
+        )?;
+        let quote_row = stmt.query_row([ticker], |row| { 
+            Ok(row_to_quote(row)?)
+        })?;
+        Ok(quote_row)
     }
 
     pub fn get_metrics_for_ticker(

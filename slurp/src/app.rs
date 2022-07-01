@@ -32,6 +32,7 @@ fn us_stock(stk: &str, primary_exchange: Option<String>) -> Contract {
 pub struct App {
     pub client: EClient,
     pub db: Db,
+    pub incremental: bool,
     pub ticker_request_queue: VecDeque<String>,
     pub open_requests: HashMap<i32, String>,
     pub quotes: VecDeque<TickerQuote>,
@@ -40,10 +41,11 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(db: Db) -> Self {
+    pub fn new(db: Db, incremental: bool) -> Self {
         App {
             client: EClient::new(),
             db,
+            incremental,
             open_requests: HashMap::new(),
             ticker_request_queue: VecDeque::new(),
             quotes: VecDeque::with_capacity(2048),
@@ -91,6 +93,28 @@ impl App {
             false,
             vec![],
         )?)
+    }
+
+    pub fn request_next_incremental_ticker(&mut self) -> anyhow::Result<()> {
+        if let Some(ticker) = self.ticker_request_queue.pop_front() {
+            let last_quote = self.db.get_last_quote(&ticker)?;
+            self.request_ticker(&ticker)?;
+
+            // Ok(self.client.req_historical_data(
+            //         self.req_id,
+            //         &contract,
+            //         query_time.as_str(),
+            //         "2 Y",
+            //         "1 day",
+            //         "TRADES",
+            //         1,
+            //         1,
+            //         false,
+            //         vec![],
+            //         )?)
+            return Ok(());
+        }
+        Ok(())
     }
 
     pub fn add_ticker_to_request_queue(&mut self, ticker: String) {
