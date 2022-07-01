@@ -45,17 +45,17 @@ pub fn get_directional_indicators(quotes: &[Quote], period: usize) -> Vec<f64> {
     }
 
     let trs = get_trs(quotes);
-    eprintln!("trs.len: {}, pos_dms.len: {}", trs.len(), pos_dms.len());
-    eprintln!("pdi: {}", pos_dms.last().unwrap());
-    eprintln!("ndi: {}", neg_dms.last().unwrap());
     let rma_atrs = get_rmas(&trs, period);
     let rma_pos_dms = get_rmas(&pos_dms, period);
     let rma_neg_dms = get_rmas(&neg_dms, period);
-    eprintln!("rpdi: {}", rma_pos_dms.last().unwrap());
-    eprintln!("rndi: {}", rma_neg_dms.last().unwrap());
     let calc = |(idx, dm): (usize, &f64)| 100.0 * dm / rma_atrs[idx];
     let pos_dis: Vec<f64> = rma_pos_dms.iter().enumerate().map(calc).collect();
     let neg_dis: Vec<f64> = rma_neg_dms.iter().enumerate().map(calc).collect();
+    eprintln!("rma_atr: {}", rma_atrs.last().unwrap());
+    eprintln!("pdi: {}", pos_dms.last().unwrap());
+    eprintln!("ndi: {}", neg_dms.last().unwrap());
+    eprintln!("rpdi: {}", rma_pos_dms.last().unwrap());
+    eprintln!("rndi: {}", rma_neg_dms.last().unwrap());
     eprintln!("pos_dis: {}", pos_dis.last().unwrap());
     eprintln!("neg_dis: {}", neg_dis.last().unwrap());
     pos_dis.iter().enumerate().map(|(idx, pdi)| { 
