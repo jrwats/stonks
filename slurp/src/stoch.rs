@@ -1,6 +1,7 @@
 use crate::db::MetricRow;
 use crate::quote::Quote;
 
+/// True ranges
 pub fn get_trs(quotes: &[Quote]) -> Vec<f64> {
     if quotes.len() < 2 {
         return vec![];
@@ -33,18 +34,44 @@ pub fn get_rmas(vals: &[f64], period: usize) -> Vec<f64> {
     rmas
 }
 
-pub fn get_dirmoves(quotes: &[Quote], rma_atrs: &[f64]) -> Vec<f64> {
-    vec![]
+pub fn get_directional_indicators(quotes: &[Quote], period: usize) -> Vec<f64> {
+    let mut pos_dms = Vec::with_capacity(quotes.len() - 1);
+    let mut neg_dms = Vec::with_capacity(quotes.len() - 1);
+    for (idx, quote) in quotes[1..].iter().enumerate() {
+        let up = quote.high - quotes[idx].high;
+        let down = quotes[idx].low - quote.low;
+        pos_dms.push(if up > down && up > 0.0 { up } else { 0.0 });
+        neg_dms.push(if down > up && down > 0.0 { down } else { 0.0 });
+    }
+
+    let trs = get_trs(quotes);
+    eprintln!("trs.len: {}, pos_dms.len: {}", trs.len(), pos_dms.len());
+    eprintln!("pdi: {}", pos_dms.last().unwrap());
+    eprintln!("ndi: {}", neg_dms.last().unwrap());
+    let rma_atrs = get_rmas(&trs, period);
+    let rma_pos_dms = get_rmas(&pos_dms, period);
+    let rma_neg_dms = get_rmas(&neg_dms, period);
+    eprintln!("rpdi: {}", rma_pos_dms.last().unwrap());
+    eprintln!("rndi: {}", rma_neg_dms.last().unwrap());
+    let calc = |(idx, dm): (usize, &f64)| 100.0 * dm / rma_atrs[idx];
+    let pos_dis: Vec<f64> = rma_pos_dms.iter().enumerate().map(calc).collect();
+    let neg_dis: Vec<f64> = rma_neg_dms.iter().enumerate().map(calc).collect();
+    eprintln!("pos_dis: {}", pos_dis.last().unwrap());
+    eprintln!("neg_dis: {}", neg_dis.last().unwrap());
+    pos_dis.iter().enumerate().map(|(idx, pdi)| { 
+        let ndi = neg_dis[idx];
+        let sum = pdi + ndi;
+        f64::abs(pdi - ndi) / if sum == 0.0 { 1.0 } else { sum }
+    }).collect()
 }
 
-pub fn get_adxs(quotes: &[Quote], dilen: usize, adxlen: usize) -> Vec<f64> {
+pub fn get_adx(quotes: &[Quote], dilen: usize, adxlen: usize) -> f64 {
     if quotes.len() < dilen {
-        return vec![];
+        return -1.0;
     }
-    let trs = get_trs(quotes);
-    let rma_atrs = get_rmas(&trs, dilen);
-    let dir_moves = get_dirmoves(quotes, &rma_atrs);
-    vec![] // TODO
+    let adxs = get_directional_indicators(quotes, dilen);
+    let rma_adxs = get_rmas(&adxs, adxlen);
+    rma_adxs.last().map(|adx: &f64| adx * 100.0).unwrap_or(-1.0)
 }
 
 pub fn get_smas(vals: &[f64], period: usize) -> Vec<f64> {

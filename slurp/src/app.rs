@@ -192,16 +192,16 @@ impl App {
                     ticker: ticker.clone(),
                     quote,
                 };
-                eprintln!("tq: {:?}", tq);
+                // eprintln!("tq: {:?}", tq);
                 self.quotes.push_back(tq);
             }
             Some(ServerRspMsg::HistoricalDataEnd { req_id, start, end }) => {
                 eprintln!("end: {} {} {}", req_id, start, end);
-                eprintln!("{} quotes", self.quotes.len());
                 let ticker = self
                     .open_requests
                     .remove(&req_id)
                     .ok_or_else(|| anyhow::anyhow!("unexpected {}", req_id))?;
+                eprintln!("{} - {} quotes", ticker, self.quotes.len());
                 if self.incremental {
                     self.request_next_incremental_ticker()?;
                 } else {
@@ -231,7 +231,7 @@ impl App {
                             );
                         }
                     }
-                    eprintln!("inserting {:?}", quotes);
+                    // eprintln!("inserting {:?}", quotes);
                     self.db.insert_daily_quotes(&ticker, &quotes)?;
                 }
                 let start = time::Instant::now();
@@ -257,12 +257,6 @@ impl App {
 
     pub fn calculate_and_insert_metrics(&mut self, ticker: &str) -> anyhow::Result<()> {
         let quotes = self.db.get_all_daily_quotes(ticker)?;
-        // eprintln!("{} / {} - {} / {}",
-        //           quotes[0].quote.timestamp,
-        //           quotes[0].id,
-        //           quotes[quotes.len()-1].quote.timestamp,
-        //           quotes[quotes.len()-1].id,
-        //           );
         for ema_window in db::SMA_WINDOWS {
             self.insert_simple_moving_avgs(ema_window, &quotes)?;
         }

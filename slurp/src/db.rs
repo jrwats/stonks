@@ -24,11 +24,11 @@ pub struct MetricRow {
 
 #[derive(Debug)]
 pub struct Metrics {
-    pub ema_8: f64,
-    pub ema_21: f64,
-    pub ema_34: f64,
+    pub ema_8: Option<f64>,
+    pub ema_21: Option<f64>,
+    pub ema_34: Option<f64>,
     pub ema_89: Option<f64>,
-    pub sma_50: f64,
+    pub sma_50: Option<f64>,
     pub sma_200: Option<f64>,
 }
 
@@ -234,11 +234,11 @@ impl Db {
                 volume,
                 count,
             };
-            let ema_8: f64 = row.get(9)?;
-            let ema_21: f64 = row.get(10)?;
-            let ema_34: f64 = row.get(11)?;
+            let ema_8: Option<f64> = row.get(9)?;
+            let ema_21: Option<f64> = row.get(10)?;
+            let ema_34: Option<f64> = row.get(11)?;
             let ema_89: Option<f64> = row.get(12)?;
-            let sma_50: f64 = row.get(13)?;
+            let sma_50: Option<f64> = row.get(13)?;
             let sma_200: Option<f64> = row.get(14)?;
             let metrics = Metrics {
                 ema_8,

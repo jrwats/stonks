@@ -10,6 +10,7 @@ mod quote;
 mod stoch;
 
 use crate::cli::{Args, Command};
+use crate::quote::Quote;
 use app::App;
 
 fn wait_loop(mut app: App) {
@@ -72,18 +73,20 @@ fn main() -> anyhow::Result<()> {
                 let ticker = io_ticker?;
 
                 // get 2 months of data for
+                eprintln!("{}", ticker);
                 let metric_rows = db.get_metrics_for_ticker(&ticker, *ema_period)?;
+                eprintln!("Gotten");
+                if metric_rows.is_empty() {
+                    eprintln!("No rows for {}", ticker);
+                    continue;
+                }
                 let bull_trend = metric_rows.iter().all(|mr| {
                     let m = &mr.metrics;
-                    m.ema_8 > m.ema_21
-                        && m.ema_21 > m.ema_34
-                        && m.ema_34 > m.ema_89.unwrap_or(f64::NEG_INFINITY)
+                    m.ema_8 > m.ema_21 && m.ema_21 > m.ema_34 && m.ema_34 > m.ema_89
                 });
                 let bear_trend = metric_rows.iter().all(|mr| {
                     let m = &mr.metrics;
-                    m.ema_8 < m.ema_21
-                        && m.ema_21 < m.ema_34
-                        && m.ema_34 < m.ema_89.unwrap_or(f64::INFINITY)
+                    m.ema_8 < m.ema_21 && m.ema_21 < m.ema_34 && m.ema_34 < m.ema_89
                 });
 
                 let slow_stoch = stoch::get_slow_stoch(
@@ -92,8 +95,11 @@ fn main() -> anyhow::Result<()> {
                     *stoch_d_smoothing,
                     &metric_rows,
                 );
+                let quotes: Vec<Quote> = metric_rows.into_iter().map(|mr| mr.quote).collect();
+                let adx = stoch::get_adx(&quotes, 13, 13);
+                println!("{}\t{}\t{}", ticker, slow_stoch, adx);
                 if bull_trend && slow_stoch <= 40.0 || bear_trend && slow_stoch >= 60.0 {
-                    println!("{}", ticker);
+                    println!("{}\t{}\t{}", ticker, slow_stoch, adx);
                 }
             }
         }
