@@ -2,7 +2,7 @@ use crate::db::MetricRow;
 use crate::quote::Quote;
 
 /// True ranges
-pub fn get_trs(quotes: &[Quote]) -> Vec<f64> {
+pub fn get_true_ranges(quotes: &[Quote]) -> Vec<f64> {
     if quotes.len() < 2 {
         return vec![];
     }
@@ -18,7 +18,8 @@ pub fn get_trs(quotes: &[Quote]) -> Vec<f64> {
     trs
 }
 
-// EMA with alpha = 1 / len
+// Rolling moving average
+// EMA with alpha = 1 / period
 pub fn get_rmas(vals: &[f64], period: usize) -> Vec<f64> {
     if vals.len() < period {
         return vec![];
@@ -37,37 +38,56 @@ pub fn get_rmas(vals: &[f64], period: usize) -> Vec<f64> {
 pub fn get_directional_indicators(quotes: &[Quote], period: usize) -> Vec<f64> {
     let mut pos_dms = Vec::with_capacity(quotes.len() - 1);
     let mut neg_dms = Vec::with_capacity(quotes.len() - 1);
-    for (idx, quote) in quotes[1..].iter().enumerate() {
-        let up = quote.high - quotes[idx].high;
-        let down = quotes[idx].low - quote.low;
+    for (prev_idx, quote) in quotes[1..].iter().enumerate() {
+        let up = quote.high - quotes[prev_idx].high;
+        let down = quotes[prev_idx].low - quote.low;
         pos_dms.push(if up > down && up > 0.0 { up } else { 0.0 });
         neg_dms.push(if down > up && down > 0.0 { down } else { 0.0 });
     }
 
-    let trs = get_trs(quotes);
-    let rma_atrs = get_rmas(&trs, period);
+    let true_ranges = get_true_ranges(quotes);
+    let atrs = get_rmas(&true_ranges, period);
     let rma_pos_dms = get_rmas(&pos_dms, period);
     let rma_neg_dms = get_rmas(&neg_dms, period);
-    let calc = |(idx, dm): (usize, &f64)| 100.0 * dm / rma_atrs[idx];
+
+    let calc = |(idx, rma_dm): (usize, &f64)| 100.0 * rma_dm / atrs[idx];
     let pos_dis: Vec<f64> = rma_pos_dms.iter().enumerate().map(calc).collect();
     let neg_dis: Vec<f64> = rma_neg_dms.iter().enumerate().map(calc).collect();
+    if atrs.len() != rma_pos_dms.len() {
+        panic!("WTF");
+    }
+
     eprintln!("quotes len: {}", quotes.len());
-    eprintln!("rma_atr: {}", rma_atrs.last().unwrap());
+    eprintln!("rma_atr: {}", atrs.last().unwrap());
     eprintln!("pdi: {}", pos_dms.last().unwrap());
     eprintln!("ndi: {}", neg_dms.last().unwrap());
     eprintln!("rpdi: {}", rma_pos_dms.last().unwrap());
     eprintln!("rndi: {}", rma_neg_dms.last().unwrap());
     eprintln!("pos_dis: {}", pos_dis.last().unwrap());
     eprintln!("neg_dis: {}", neg_dis.last().unwrap());
-    eprintln!("atrs:");
-    for atr in rma_atrs.iter() {
-        eprintln!("{}", atr);
-    }
-    pos_dis.iter().enumerate().map(|(idx, pdi)| { 
+
+    eprintln!("ATR: {}", atrs.last().unwrap());
+    let result: Vec<f64> = pos_dis.iter().enumerate().map(|(idx, pdi)| { 
         let ndi = neg_dis[idx];
         let sum = pdi + ndi;
         f64::abs(pdi - ndi) / if sum == 0.0 { 1.0 } else { sum }
-    }).collect()
+    }).collect();
+
+    let redundant = get_rmas(&result, 13);
+    let offset = pos_dis.len() - redundant.len();
+    let start = redundant.len() - 63;
+
+    eprintln!("atrs:");
+    for atr in atrs[start..].iter() {
+        eprintln!("{}", atr);
+    }
+
+    eprintln!("offset: {}", offset);
+    for (idx, adxr) in redundant[start..].iter().enumerate() {
+        let i = idx + start + offset;
+        eprintln!("{}\t{}\t{}", pos_dis[i], neg_dis[i], 100.0 * adxr);
+    }
+    result
 }
 
 pub fn get_adx(quotes: &[Quote], dilen: usize, adxlen: usize) -> f64 {
@@ -76,6 +96,10 @@ pub fn get_adx(quotes: &[Quote], dilen: usize, adxlen: usize) -> f64 {
     }
     let adxs = get_directional_indicators(quotes, dilen);
     let rma_adxs = get_rmas(&adxs, adxlen);
+    // eprintln!("smoothed adxs:");
+    // for a in &rma_adxs {
+    //     eprintln!("{}", a * 100.0);
+    // }
     rma_adxs.last().map(|adx: &f64| adx * 100.0).unwrap_or(-1.0)
 }
 

@@ -74,17 +74,19 @@ fn main() -> anyhow::Result<()> {
 
                 // get 2 months of data for
                 eprintln!("{}", ticker);
+                let start = std::time::Instant::now();
                 let metric_rows = db.get_metrics_for_ticker(&ticker, None)?;
-                eprintln!("Gotten");
+                eprintln!("fetched in: {:?}", start.elapsed());
                 if metric_rows.is_empty() {
                     eprintln!("No rows for {}", ticker);
                     continue;
                 }
-                let bull_trend = metric_rows.iter().all(|mr| {
+                let ema_start_idx = metric_rows.len() - ema_period;
+                let bull_trend = metric_rows[ema_start_idx..].iter().all(|mr| {
                     let m = &mr.metrics;
                     m.ema_8 > m.ema_21 && m.ema_21 > m.ema_34 && m.ema_34 > m.ema_89
                 });
-                let bear_trend = metric_rows.iter().all(|mr| {
+                let bear_trend = metric_rows[ema_start_idx..].iter().all(|mr| {
                     let m = &mr.metrics;
                     m.ema_8 < m.ema_21 && m.ema_21 < m.ema_34 && m.ema_34 < m.ema_89
                 });
