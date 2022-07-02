@@ -36,6 +36,23 @@ pub fn get_rmas(vals: &[f64], period: usize) -> Vec<f64> {
     rmas
 }
 
+pub fn get_smas(vals: &[f64], period: usize) -> Vec<f64> {
+    if vals.len() < period {
+        return vec![];
+    }
+    let mut smas = Vec::with_capacity(vals.len() - period + 1);
+    let mut sum: f64 = vals[0..period].iter().sum();
+    let mut drop_idx = 0;
+    smas.push(sum / period as f64);
+    for val in vals[period..].iter() {
+        sum += val;
+        sum -= vals[drop_idx];
+        drop_idx += 1;
+        smas.push(sum / period as f64);
+    }
+    smas
+}
+
 pub fn get_adxs(quotes: &[Quote], period: usize) -> Vec<f64> {
     let mut pos_dms = Vec::with_capacity(quotes.len() - 1);
     let mut neg_dms = Vec::with_capacity(quotes.len() - 1);
@@ -94,36 +111,42 @@ pub fn get_adxr(quotes: &[Quote], dilen: usize, adxlen: usize) -> f64 {
     }
     let adxs = get_adxs(quotes, dilen);
     let rma_adxs = get_rmas(&adxs, adxlen);
-    // eprintln!("smoothed adxs:");
-    // for a in &rma_adxs {
-    //     eprintln!("{}", a * 100.0);
-    // }
     rma_adxs.last().map(|adx: &f64| adx * 100.0).unwrap_or(-1.0)
 }
 
-pub fn get_smas(vals: &[f64], period: usize) -> Vec<f64> {
-    if vals.len() < period {
-        return vec![];
+pub fn get_rsis(quotes: &[Quote], period: usize) -> Vec<f64> {
+    // up = ta.rma(math.max(ta.change(close), 0), period)
+    // down = ta.rma(-math.min(ta.change(close), 0), period)
+    // rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+    let mut raw_ups = Vec::with_capacity(quotes.len() - 1);
+    let mut raw_downs = Vec::with_capacity(quotes.len() - 1);
+    for (idx, quote) in quotes[1..].iter().enumerate() {
+        let change = quote.close - quotes[idx].close;
+        raw_ups.push(change.max(0.0));
+        raw_downs.push(-change.min(0.0));
     }
-    let mut smas = Vec::with_capacity(vals.len() - period + 1);
-    let mut sum: f64 = vals[0..period].iter().sum();
-    let mut drop_idx = 0;
-    smas.push(sum / period as f64);
-    for val in vals[period..].iter() {
-        sum += val;
-        sum -= vals[drop_idx];
-        drop_idx += 1;
-        smas.push(sum / period as f64);
-    }
-    smas
+    let ups = get_rmas(&raw_ups, period);
+    let downs = get_rmas(&raw_downs, period);
+    ups.into_iter().zip(downs).map(|(up, down)| {
+        if down == 0.0 {
+            return 100.0;
+        } else if up == 0.0 {
+            return 0.0;
+        }
+        100.0 - (100.0 / (1.0 + up / down))
+    }).collect()
+}
+
+pub fn get_last_rsi(quotes: &[Quote], period: usize) -> f64 {
+    *get_rsis(quotes, period).last().unwrap()
 }
 
 pub fn get_stochastics(metric_rows: &[MetricRow], k_len: usize) -> Vec<f64> {
     let mut stochs = Vec::with_capacity(metric_rows.len() - k_len + 1);
-    for (idx, row) in metric_rows[(k_len as usize - 1)..].iter().enumerate() {
+    for (idx, row) in metric_rows[(k_len - 1)..].iter().enumerate() {
         let mut hi = f64::NEG_INFINITY;
         let mut lo = f64::INFINITY;
-        for row in metric_rows[idx..(idx + k_len as usize)].iter() {
+        for row in metric_rows[idx..(idx + k_len)].iter() {
             if row.quote.high > hi {
                 hi = row.quote.high;
             }

@@ -69,6 +69,7 @@ fn main() -> anyhow::Result<()> {
             ref stoch_threshold,
             ref adx_period,
         } => {
+            println!("{}\t{}\t{}\t{}", "ticker", "stoch", "ADX", "RSI");
             for io_ticker in io::stdin().lock().lines() {
                 let ticker = io_ticker?;
 
@@ -107,7 +108,8 @@ fn main() -> anyhow::Result<()> {
                     || bear_trend && slow_stoch >= (50.0 + stoch_threshold))
                     && adxr > 20.0
                 {
-                    println!("{}\t{}\t{}", ticker, slow_stoch, adxr);
+                    let rsi = stoch::get_last_rsi(&quotes, 2);
+                    println!("{}\t{}\t{}\t{}", ticker, slow_stoch, adxr, rsi);
                 }
             }
         }
