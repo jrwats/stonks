@@ -44,8 +44,8 @@ pub enum Command {
         /// The minimum absolute threshold (added 50) at which we consider this overbought (in downtrend) or
         /// oversold (in uptrend). i.e. a value of 10 means values above 60 will be considered
         /// overbought and values below 40 will be oversold
-        #[structopt(long, default_value = "3")]
-        stoch_threshold: usize,
+        #[structopt(long, default_value = "10.0")]
+        stoch_threshold: f64,
 
         #[structopt(long, default_value = "13")]
         adx_period: usize,

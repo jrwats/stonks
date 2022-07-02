@@ -73,12 +73,15 @@ fn main() -> anyhow::Result<()> {
                 let ticker = io_ticker?;
 
                 // get 2 months of data for
-                eprintln!("{}", ticker);
-                let start = std::time::Instant::now();
+                // eprintln!("{}", ticker);
+                // let start = std::time::Instant::now();
                 let metric_rows = db.get_metrics_for_ticker(&ticker, None)?;
-                eprintln!("fetched in: {:?}", start.elapsed());
+                // eprintln!("fetched in: {:?}", start.elapsed());
                 if metric_rows.is_empty() {
                     eprintln!("No rows for {}", ticker);
+                    continue;
+                }
+                if *ema_period > metric_rows.len() {
                     continue;
                 }
                 let ema_start_idx = metric_rows.len() - ema_period;
@@ -98,10 +101,13 @@ fn main() -> anyhow::Result<()> {
                     &metric_rows,
                 );
                 let quotes: Vec<Quote> = metric_rows.into_iter().map(|mr| mr.quote).collect();
-                let adx = stoch::get_adx(&quotes, 13, 13);
-                println!("{}\t{}\t{}", ticker, slow_stoch, adx);
-                if bull_trend && slow_stoch <= 40.0 || bear_trend && slow_stoch >= 60.0 {
-                    println!("{}\t{}\t{}", ticker, slow_stoch, adx);
+                let adxr = stoch::get_adxr(&quotes, *adx_period, 3);
+
+                if (bull_trend && slow_stoch <= (50.0 + stoch_threshold)
+                    || bear_trend && slow_stoch >= (50.0 + stoch_threshold))
+                    && adxr > 20.0
+                {
+                    println!("{}\t{}\t{}", ticker, slow_stoch, adxr);
                 }
             }
         }

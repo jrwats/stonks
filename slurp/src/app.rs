@@ -34,7 +34,7 @@ pub struct App {
     pub db: Db,
     pub incremental: bool,
     pub ticker_request_queue: VecDeque<String>,
-    pub open_requests: HashMap<i32, String>,
+    pub open_requests: HashMap<i32, (bool, String)>,
     pub quotes: VecDeque<TickerQuote>,
     pub req_id: i32,
     next_order_id: i32,
@@ -79,7 +79,8 @@ impl App {
         let dt = Utc::now();
         let query_time = dt.format("%Y%m%d %H:%M:%S").to_string();
         self.req_id += 1;
-        self.open_requests.insert(self.req_id, ticker.to_string());
+        self.open_requests
+            .insert(self.req_id, (false, ticker.to_string()));
         eprintln!("requesting {}", ticker);
         Ok(self.client.req_historical_data(
             self.req_id,
@@ -107,14 +108,15 @@ impl App {
                 self.request_next_incremental_ticker()?;
                 return Ok(true);
             }
-            let day_str = format!("{} D", num_days);
+            let day_str = format!("{} D", num_days + 1);
             self.req_id += 1;
             let contract = us_stock(&ticker, self.db.get_exchange(&ticker)?);
             eprintln!(
                 "requesting '{}' for {}, req_id: {}",
                 &day_str, &ticker, self.req_id
             );
-            self.open_requests.insert(self.req_id, ticker.to_string());
+            self.open_requests
+                .insert(self.req_id, (true, ticker.to_string()));
             self.client.req_historical_data(
                 self.req_id,
                 &contract,
@@ -184,7 +186,7 @@ impl App {
             // Some(ServerRspMsg::ExecutionDataEnd { req_id }) => info!("exec_details_end -- req_id: {}", req_id),
             Some(ServerRspMsg::HistoricalData { req_id, bar }) => {
                 let quote = bar.try_into()?;
-                let ticker = self
+                let (incremental, ticker) = self
                     .open_requests
                     .get(&req_id)
                     .ok_or_else(|| anyhow::anyhow!("unknown req_id {}", req_id))?;
@@ -197,12 +199,12 @@ impl App {
             }
             Some(ServerRspMsg::HistoricalDataEnd { req_id, start, end }) => {
                 eprintln!("end: {} {} {}", req_id, start, end);
-                let ticker = self
+                let (incremental, ticker) = self
                     .open_requests
                     .remove(&req_id)
                     .ok_or_else(|| anyhow::anyhow!("unexpected {}", req_id))?;
                 eprintln!("{} - {} quotes", ticker, self.quotes.len());
-                if self.incremental {
+                if incremental {
                     self.request_next_incremental_ticker()?;
                 } else {
                     self.request_next_ticker()?;
@@ -213,7 +215,7 @@ impl App {
                     qs.push(tq.quote);
                 }
                 for (ticker, quotes) in tick2quotes {
-                    if self.incremental {
+                    if incremental {
                         // check for updated close numbers and request new 2-year data if so
                         let first_quote = &quotes[0];
                         let cached_quote = self
@@ -224,19 +226,16 @@ impl App {
                                 "{} != {} for {}",
                                 cached_quote.quote.close, first_quote.close, ticker
                             );
-                        } else {
-                            eprintln!(
-                                "{} == {} for {}",
-                                cached_quote.quote.close, first_quote.close, ticker
-                            );
+                            self.request_ticker(&ticker);
+                            continue;
                         }
                     }
                     // eprintln!("inserting {:?}", quotes);
                     self.db.insert_daily_quotes(&ticker, &quotes)?;
                 }
-                let start = time::Instant::now();
+                // let start = time::Instant::now();
                 self.calculate_and_insert_metrics(&ticker)?;
-                eprintln!("calculate & insert metrics in: {:?}", start.elapsed());
+                // eprintln!("calculate & insert metrics in: {:?}", start.elapsed());
             }
             Some(ServerRspMsg::CommissionReport { commission_report }) => eprintln!(
                 "commission_report -- commission_report: {}",
