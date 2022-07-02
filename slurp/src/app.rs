@@ -32,7 +32,6 @@ fn us_stock(stk: &str, primary_exchange: Option<String>) -> Contract {
 pub struct App {
     pub client: EClient,
     pub db: Db,
-    pub incremental: bool,
     pub ticker_request_queue: VecDeque<String>,
     pub open_requests: HashMap<i32, (bool, String)>,
     pub quotes: VecDeque<TickerQuote>,
@@ -41,11 +40,10 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(db: Db, incremental: bool) -> Self {
+    pub fn new(db: Db) -> Self {
         App {
             client: EClient::new(),
             db,
-            incremental,
             open_requests: HashMap::new(),
             ticker_request_queue: VecDeque::new(),
             quotes: VecDeque::with_capacity(2048),
@@ -186,7 +184,7 @@ impl App {
             // Some(ServerRspMsg::ExecutionDataEnd { req_id }) => info!("exec_details_end -- req_id: {}", req_id),
             Some(ServerRspMsg::HistoricalData { req_id, bar }) => {
                 let quote = bar.try_into()?;
-                let (incremental, ticker) = self
+                let (_incremental, ticker) = self
                     .open_requests
                     .get(&req_id)
                     .ok_or_else(|| anyhow::anyhow!("unknown req_id {}", req_id))?;
@@ -226,7 +224,7 @@ impl App {
                                 "{} != {} for {}",
                                 cached_quote.quote.close, first_quote.close, ticker
                             );
-                            self.request_ticker(&ticker);
+                            self.request_ticker(&ticker)?;
                             continue;
                         }
                     }

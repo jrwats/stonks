@@ -31,7 +31,7 @@ fn main() -> anyhow::Result<()> {
     let args = Args::from_args();
     match args.command {
         Command::Full => {
-            let mut app = App::new(db, false);
+            let mut app = App::new(db);
             // port 7497 for TWS or 4001 for IB Gateway, depending on the port you have set
             app.client.connect("127.0.0.1", 4001, 7274605)?;
             for io_ticker in io::stdin().lock().lines() {
@@ -47,7 +47,7 @@ fn main() -> anyhow::Result<()> {
             wait_loop(app);
         }
         Command::Incremental => {
-            let mut app = App::new(db, true);
+            let mut app = App::new(db);
             // port 7497 for TWS or 4001 for IB Gateway, depending on the port you have set
             app.client.connect("127.0.0.1", 4001, 7274605)?;
             for io_ticker in io::stdin().lock().lines() {
@@ -114,7 +114,7 @@ fn main() -> anyhow::Result<()> {
             }
         }
         Command::CalculateMetrics => {
-            let mut app = App::new(db, false);
+            let mut app = App::new(db);
             for io_ticker in io::stdin().lock().lines() {
                 let ticker = io_ticker?;
                 app.calculate_and_insert_metrics(&ticker)?;
