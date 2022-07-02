@@ -92,17 +92,6 @@ pub fn get_adxs(quotes: &[Quote], period: usize) -> Vec<f64> {
             f64::abs(pdi - ndi) / denom
         })
         .collect()
-
-    // let redundant = get_rmas(&result, 13);
-    // let offset = pos_dis.len() - redundant.len();
-    // let start = redundant.len() - 63;
-    //
-    // eprintln!("offset: {}", offset);
-    // for (idx, adxr) in redundant[start..].iter().enumerate() {
-    //     let i = idx + start + offset;
-    //     eprintln!("{}\t{}\t{}", pos_dis[i], neg_dis[i], 100.0 * adxr);
-    // }
-    // result
 }
 
 pub fn get_adxr(quotes: &[Quote], dilen: usize, adxlen: usize) -> f64 {
