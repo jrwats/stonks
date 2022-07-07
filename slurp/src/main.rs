@@ -21,7 +21,7 @@ fn main() -> anyhow::Result<()> {
         Command::Full => {
             let mut app = App::new(db, false);
             // port 7497 for TWS or 4001 for IB Gateway, depending on the port you have set
-            app.client.connect("127.0.0.1", 4001, 7274605)?;
+            app.client.connect(&args.ip, args.port, 7274605)?;
             for io_ticker in io::stdin().lock().lines() {
                 let ticker = io_ticker?;
                 app.add_ticker_to_request_queue(ticker);

@@ -5,6 +5,12 @@ use structopt::{self, StructOpt};
 pub struct Args {
     #[structopt(subcommand)]
     pub command: Command,
+
+    #[structopt(long, default_value = "127.0.0.1")]
+    pub ip: String,
+
+    #[structopt(long, default_value = "4001")]
+    pub port: u32,
 }
 
 #[derive(StructOpt, Debug)]
