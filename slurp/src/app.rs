@@ -220,6 +220,7 @@ impl App {
             // Some(ServerRspMsg::ExecutionData { req_id, contract, execution }) =>
             //     eprintln!("exec_details -- req_id: {}, contract: {}, execution: {}", req_id, contract, execution),
             // Some(ServerRspMsg::ExecutionDataEnd { req_id }) => info!("exec_details_end -- req_id: {}", req_id),
+            Some(ServerRspMsg::NewsBulletins { .. }) => info!("news bulletin ignored"),
             Some(ServerRspMsg::HistoricalData { req_id, bar }) => {
                 let quote = bar.try_into()?;
                 let (_incremental, ticker) = self

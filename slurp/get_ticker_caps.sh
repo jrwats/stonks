@@ -13,5 +13,5 @@ print(json.dumps([dict(r) for r in csv.DictReader(sys.stdin)]))' |
     sed -r 's/^BRK-B/BRK B/;s/TVTY/NLSN/;s/^BF-A/BF A/' | # IKBR-specific filter/renames
     tee ticker_mkt_cap.tsv |
     cut -d $'\t' -f1 | sort |
-    comm -23 - unavailable.conf | sort -u tickers.list 
+    comm -23 - unavailable.conf > tickers.list
 
