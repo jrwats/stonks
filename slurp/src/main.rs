@@ -39,6 +39,7 @@ fn main() -> anyhow::Result<()> {
             app.run()?;
         }
         Command::TrendCandidates {
+            ref force,
             ref ema_period,
             ref stoch_k_len,
             ref stoch_k_smoothing,
@@ -81,7 +82,7 @@ fn main() -> anyhow::Result<()> {
                 let quotes: Vec<Quote> = metric_rows.into_iter().map(|mr| mr.quote).collect();
                 let adxr = stoch::get_adxr(&quotes, *adx_period, 3);
 
-                if (bull_trend && slow_stoch <= (50.0 + stoch_threshold)
+                if *force || (bull_trend && slow_stoch <= (50.0 + stoch_threshold)
                     || bear_trend && slow_stoch >= (50.0 + stoch_threshold))
                     && adxr > 20.0
                 {

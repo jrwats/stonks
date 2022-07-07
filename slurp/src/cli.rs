@@ -35,6 +35,10 @@ pub enum Command {
     /// EMA 8 < EMA 21 < EMA 34 < EMA 89 OR
     /// EMA 8 > EMA 21 > EMA 34 > EMA 89 rules
     TrendCandidates {
+        /// Spit out metrics regardless of whether the ticker passes the filter
+        #[structopt(long)]
+        force: bool,
+
         /// Period (days) for which to require that EMAs abide by strictly consistent ordering
         #[structopt(long, default_value = "42")]
         ema_period: usize,
