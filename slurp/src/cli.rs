@@ -15,7 +15,11 @@ pub enum Command {
 
     /// Iterate all newline-delimiitted tickers and append the days of candles since the last row
     /// we have for that ticker
-    Incremental,
+    Incremental {
+        /// Don't rely on DB cache - always add latest days from IBKR
+        #[structopt(long)]
+        force: bool
+    },
 
     /// Calculate and store simple moving averages, exponential moving averages, ATRs, etc
     /// for all stored tickers

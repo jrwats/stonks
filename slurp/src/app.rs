@@ -11,6 +11,8 @@ use std::thread;
 use crate::db::{self, Db, QuoteRow};
 use crate::quote::Quote;
 
+const CONCURRENCY_LIMIT: usize = 20;
+
 #[derive(Debug)]
 pub struct TickerQuote {
     ticker: String,
@@ -32,7 +34,9 @@ fn us_stock(stk: &str, primary_exchange: Option<String>) -> Contract {
 pub struct App {
     pub client: EClient,
     pub db: Db,
-    pub ticker_request_queue: VecDeque<String>,
+    pub force: bool,
+    pub full_ticker_queue: VecDeque<String>,
+    pub incremental_ticker_queue: VecDeque<String>,
     pub open_requests: HashMap<i32, (bool, String)>,
     pub quotes: VecDeque<TickerQuote>,
     pub req_id: i32,
@@ -40,12 +44,14 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(db: Db) -> Self {
+    pub fn new(db: Db, force: bool) -> Self {
         App {
             client: EClient::new(),
             db,
+            force,
             open_requests: HashMap::new(),
-            ticker_request_queue: VecDeque::new(),
+            full_ticker_queue: VecDeque::new(),
+            incremental_ticker_queue: VecDeque::new(),
             quotes: VecDeque::with_capacity(2048),
             next_order_id: -1,
             req_id: 1,
@@ -94,14 +100,42 @@ impl App {
         )?)
     }
 
+    pub fn run(&mut self) -> anyhow::Result<()> {
+        let mut count = 0;
+        while !self.full_ticker_queue.is_empty() && count < CONCURRENCY_LIMIT {
+            self.request_next_ticker()?;
+            count += 1;
+        }
+        count = 0;
+        while !self.incremental_ticker_queue.is_empty() && count < CONCURRENCY_LIMIT {
+            self.request_next_incremental_ticker()?;
+            count += 1;
+        }
+        self.wait_loop();
+        Ok(())
+    }
+
+    fn wait_loop(&mut self) {
+        loop {
+            match self.process_ib_response() {
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("{}", e.to_string());
+                    break ();
+                }
+            };
+        }
+    }
+
+
     pub fn request_next_incremental_ticker(&mut self) -> anyhow::Result<bool> {
-        if let Some(ticker) = self.ticker_request_queue.pop_front() {
+        if let Some(ticker) = self.incremental_ticker_queue.pop_front() {
             let last_quote = self.db.get_last_quote(&ticker)?;
             let dt = Utc::now();
             let query_time = dt.format("%Y%m%d %H:%M:%S").to_string();
             let last_quote = Utc.timestamp(last_quote.quote.timestamp, 0);
             let num_days = (dt - last_quote).num_days();
-            if num_days == 0 {
+            if num_days == 0 && !self.force {
                 eprintln!("skipping up-to-date {}", &ticker);
                 self.request_next_incremental_ticker()?;
                 return Ok(true);
@@ -132,12 +166,16 @@ impl App {
         Ok(false)
     }
 
+    pub fn add_incremental_ticker(&mut self, ticker: String) {
+        self.incremental_ticker_queue.push_back(ticker);
+    }
+
     pub fn add_ticker_to_request_queue(&mut self, ticker: String) {
-        self.ticker_request_queue.push_back(ticker);
+        self.full_ticker_queue.push_back(ticker);
     }
 
     pub fn request_next_ticker(&mut self) -> anyhow::Result<bool> {
-        if let Some(ticker) = self.ticker_request_queue.pop_front() {
+        if let Some(ticker) = self.full_ticker_queue.pop_front() {
             self.request_ticker(&ticker)?;
             return Ok(true);
         }
@@ -224,7 +262,10 @@ impl App {
                                 "{} != {} for {}",
                                 cached_quote.quote.close, first_quote.close, ticker
                             );
-                            self.request_ticker(&ticker)?;
+                            self.add_ticker_to_request_queue(ticker);
+                            if self.open_requests.len() < CONCURRENCY_LIMIT * 2 {
+                                self.request_next_ticker()?;
+                            }
                             continue;
                         }
                     }
