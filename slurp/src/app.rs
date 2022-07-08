@@ -11,7 +11,8 @@ use std::thread;
 use crate::db::{self, Db, QuoteRow};
 use crate::quote::Quote;
 
-const CONCURRENCY_LIMIT: usize = 20;
+const CONCURRENCY_LIMIT: usize = 40;
+const CONCURRENCY_BUFFER: usize = 10;
 
 #[derive(Debug)]
 pub struct TickerQuote {
@@ -263,7 +264,7 @@ impl App {
                                 cached_quote.quote.close, first_quote.close, ticker
                             );
                             self.add_ticker_to_request_queue(ticker);
-                            if self.open_requests.len() < CONCURRENCY_LIMIT * 2 {
+                            if self.open_requests.len() < CONCURRENCY_LIMIT + CONCURRENCY_BUFFER {
                                 self.request_next_ticker()?;
                             }
                             continue;
