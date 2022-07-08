@@ -107,7 +107,6 @@ impl App {
             self.request_next_ticker()?;
             count += 1;
         }
-        count = 0;
         while !self.incremental_ticker_queue.is_empty() && count < CONCURRENCY_LIMIT {
             self.request_next_incremental_ticker()?;
             count += 1;
