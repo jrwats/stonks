@@ -31,7 +31,7 @@ fn main() -> anyhow::Result<()> {
         Command::Incremental { force } => {
             let mut app = App::new(db, force);
             // port 7497 for TWS or 4001 for IB Gateway, depending on the port you have set
-            app.client.connect("127.0.0.1", 4001, 7274605)?;
+            app.client.connect(&args.ip, args.port, 7274605)?;
             for io_ticker in io::stdin().lock().lines() {
                 let ticker = io_ticker?;
                 app.add_incremental_ticker(ticker);
@@ -82,9 +82,10 @@ fn main() -> anyhow::Result<()> {
                 let quotes: Vec<Quote> = metric_rows.into_iter().map(|mr| mr.quote).collect();
                 let adxr = stoch::get_adxr(&quotes, *adx_period, 3);
 
-                if *force || (bull_trend && slow_stoch <= (50.0 - stoch_threshold)
-                    || bear_trend && slow_stoch >= (50.0 + stoch_threshold))
-                    && adxr > 20.0
+                if *force
+                    || (bull_trend && slow_stoch <= (50.0 - stoch_threshold)
+                        || bear_trend && slow_stoch >= (50.0 + stoch_threshold))
+                        && adxr > 20.0
                 {
                     let rsi = stoch::get_last_rsi(&quotes, 2);
                     println!("{}\t{}\t{}\t{}", ticker, slow_stoch, adxr, rsi);

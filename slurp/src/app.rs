@@ -127,7 +127,6 @@ impl App {
         }
     }
 
-
     pub fn request_next_incremental_ticker(&mut self) -> anyhow::Result<bool> {
         if let Some(ticker) = self.incremental_ticker_queue.pop_front() {
             let last_quote = self.db.get_last_quote(&ticker)?;

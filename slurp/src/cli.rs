@@ -24,7 +24,7 @@ pub enum Command {
     Incremental {
         /// Don't rely on DB cache - always add latest days from IBKR
         #[structopt(long)]
-        force: bool
+        force: bool,
     },
 
     /// Calculate and store simple moving averages, exponential moving averages, ATRs, etc

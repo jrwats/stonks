@@ -171,7 +171,8 @@ impl Db {
          ORDER BY timestamp DESC
          LIMIT 1",
         )?;
-        let quote_row = stmt.query_row([ticker], |row| Ok(row_to_quote(row)?))
+        let quote_row = stmt
+            .query_row([ticker], |row| Ok(row_to_quote(row)?))
             .with_context(|| format!("No row for {}", ticker))?;
         Ok(quote_row)
     }

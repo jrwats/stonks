@@ -116,14 +116,17 @@ pub fn get_rsis(quotes: &[Quote], period: usize) -> Vec<f64> {
     }
     let ups = get_rmas(&raw_ups, period);
     let downs = get_rmas(&raw_downs, period);
-    ups.into_iter().zip(downs).map(|(up, down)| {
-        if down == 0.0 {
-            return 100.0;
-        } else if up == 0.0 {
-            return 0.0;
-        }
-        100.0 - (100.0 / (1.0 + up / down))
-    }).collect()
+    ups.into_iter()
+        .zip(downs)
+        .map(|(up, down)| {
+            if down == 0.0 {
+                return 100.0;
+            } else if up == 0.0 {
+                return 0.0;
+            }
+            100.0 - (100.0 / (1.0 + up / down))
+        })
+        .collect()
 }
 
 pub fn get_last_rsi(quotes: &[Quote], period: usize) -> f64 {
