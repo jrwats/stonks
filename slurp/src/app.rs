@@ -1,4 +1,5 @@
 use chrono::prelude::*;
+use chrono::Duration;
 use std::collections::{HashMap, VecDeque};
 use std::time;
 
@@ -42,6 +43,17 @@ pub struct App {
     pub quotes: VecDeque<TickerQuote>,
     pub req_id: i32,
     next_order_id: i32,
+}
+
+fn close_time(mut dt: DateTime<Utc>) -> DateTime<Utc> {
+    // If the hours given is less than 4:30PM, return yesterday's 4:30PM time for query input.
+    // TimeZone.from_offset9
+    if dt.hour() < 16 || dt.hour() == 16 && dt.minute() < 30 {
+        dt = dt - Duration::days(1);
+        return dt
+    }
+    dt
+
 }
 
 impl App {
