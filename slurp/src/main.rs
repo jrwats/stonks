@@ -80,7 +80,7 @@ fn main() -> anyhow::Result<()> {
                     &metric_rows,
                 );
                 let quotes: Vec<Quote> = metric_rows.into_iter().map(|mr| mr.quote).collect();
-                let adxr = stoch::get_adxr(&quotes, *adx_period, 3);
+                let adxr = stoch::get_adxr(&quotes, *adx_period, 1);
 
                 if *force
                     || (bull_trend && slow_stoch <= (50.0 - stoch_threshold)
