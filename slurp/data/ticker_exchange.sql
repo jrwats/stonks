@@ -1,6 +1,6 @@
 PRAGMA foreign_keys=OFF;
 BEGIN TRANSACTION;
-CREATE TABLE IF NOT EXISTS ticker_exchange (
+CREATE TABLE ticker_exchange (
            ticker TEXT PRIMARY KEY NOT NULL,
            primary_exchange TEXT
          );
@@ -25,4 +25,6 @@ INSERT INTO ticker_exchange VALUES('WELL','NYSE');
 INSERT INTO ticker_exchange VALUES('WING','NASDAQ');
 INSERT INTO ticker_exchange VALUES('WNG','NYSE');
 INSERT INTO ticker_exchange VALUES('WLL','NYSE');
+INSERT INTO ticker_exchange VALUES('FBRT','NYSE');
+INSERT INTO ticker_exchange VALUES('PLAY','NASDAQ');
 COMMIT;
