@@ -51,8 +51,9 @@ fn close_time(mut dt: DateTime<Utc>) -> DateTime<Utc> {
     // TimeZone.from_offset9
     let edt_tz = FixedOffset::west(4 * 3600);
     let edt = dt.with_timezone(&edt_tz);
-    if (edt.hour() > 9 || edt.hour() == 9 && edt.minute() >= 30) && 
-        (edt.hour() < 16 || edt.hour() == 16 && edt.minute() < 30) {
+    if (edt.hour() > 9 || edt.hour() == 9 && edt.minute() >= 30)
+        && (edt.hour() < 16 || edt.hour() == 16 && edt.minute() < 30)
+    {
         dt = dt - Duration::days(1);
         return Utc.ymd(dt.year(), dt.month(), dt.day()).and_hms(11, 59, 0);
     }
@@ -155,7 +156,7 @@ impl App {
                 self.request_next_incremental_ticker()?;
                 return Ok(true);
             }
-            let day_str = format!("{} D", num_days + 1);
+            let day_str = format!("{} D", num_days + 2);
             self.req_id += 1;
             let contract = us_stock(&ticker, self.db.get_exchange(&ticker)?);
             eprintln!(
@@ -270,18 +271,23 @@ impl App {
                     if incremental {
                         // check for updated close numbers and request new 2-year data if so
                         let first_quote = &quotes[0];
-                        let cached_quote = self
+                        let maybe_cached_quote = self
                             .db
-                            .get_quote_with_timestamp(&ticker, quotes[0].timestamp)?;
-                        if cached_quote.quote.close != first_quote.close {
-                            eprintln!(
-                                "{} != {} for {}",
-                                cached_quote.quote.close, first_quote.close, ticker
-                            );
-                            self.add_ticker_to_request_queue(ticker);
-                            if self.open_requests.len() < CONCURRENCY_LIMIT + CONCURRENCY_BUFFER {
-                                self.request_next_ticker()?;
+                            .get_quote_with_timestamp(&ticker, first_quote.timestamp)?;
+                        if let Some(cached_quote) = maybe_cached_quote {
+                            if cached_quote.quote.close != first_quote.close {
+                                eprintln!(
+                                    "{} != {} for {}",
+                                    cached_quote.quote.close, first_quote.close, ticker
+                                    );
+                                self.add_ticker_to_request_queue(ticker);
+                                if self.open_requests.len() < CONCURRENCY_LIMIT + CONCURRENCY_BUFFER {
+                                    self.request_next_ticker()?;
+                                }
+                                continue;
                             }
+                        } else {
+                            eprintln!("No row for {} with timestamp {}", ticker, first_quote.timestamp);
                             continue;
                         }
                     }

@@ -181,13 +181,16 @@ impl Db {
         &self,
         ticker: &str,
         timestamp: i64,
-    ) -> anyhow::Result<QuoteRow> {
+    ) -> anyhow::Result<Option<QuoteRow>> {
+        eprintln!("{} {}", ticker, timestamp);
         let mut stmt = self.conn.prepare(
             "SELECT id, timestamp, open, close, high, low, avg, volume, count
-         FROM daily
-         WHERE ticker = ? AND timestamp = ?",
+             FROM daily
+             WHERE ticker = ? AND timestamp = ?",
         )?;
-        let quote_row = stmt.query_row(params![ticker, timestamp], |row| Ok(row_to_quote(row)?))?;
+        let quote_row = stmt
+            .query_row(params![ticker, timestamp], |row| Ok(row_to_quote(row)?))
+            .optional()?;
         Ok(quote_row)
     }
 
