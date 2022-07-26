@@ -147,7 +147,7 @@ impl App {
         if let Some(ticker) = self.incremental_ticker_queue.pop_front() {
             let last_quote = self.db.get_last_quote(&ticker)?;
             let dt = close_time(Utc::now());
-            eprintln!("dt: {:?}", dt);
+            // eprintln!("dt: {:?}", dt);
             let query_time = dt.format("%Y%m%d %H:%M:%S").to_string();
             let last_quote = Utc.timestamp(last_quote.quote.timestamp, 0);
             let num_days = (dt - last_quote).num_days();
