@@ -39,6 +39,10 @@ pub enum Command {
         #[structopt(long)]
         force: bool,
 
+        /// Only compare 8 ema with 34 ema
+        #[structopt(long)]
+        loose: bool,
+
         /// Period (days) for which to require that EMAs abide by strictly consistent ordering
         #[structopt(long, default_value = "42")]
         ema_period: usize,

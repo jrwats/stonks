@@ -45,6 +45,7 @@ fn main() -> anyhow::Result<()> {
             ref stoch_k_smoothing,
             ref stoch_d_smoothing,
             ref stoch_threshold,
+            ref loose,
             ref adx_period,
         } => {
             println!("{}\t{}\t{}\t{}", "ticker", "stoch", "ADX", "RSI");
@@ -66,11 +67,13 @@ fn main() -> anyhow::Result<()> {
                 let ema_start_idx = metric_rows.len() - ema_period;
                 let bull_trend = metric_rows[ema_start_idx..].iter().all(|mr| {
                     let m = &mr.metrics;
-                    m.ema_8 > m.ema_21 && m.ema_21 > m.ema_34 && m.ema_34 > m.ema_89
+                    m.ema_8 > m.ema_21 && m.ema_21 > m.ema_34 && m.ema_34 > m.ema_89 ||
+                        *loose && m.ema_8 > m.ema_34
                 });
                 let bear_trend = metric_rows[ema_start_idx..].iter().all(|mr| {
                     let m = &mr.metrics;
-                    m.ema_8 < m.ema_21 && m.ema_21 < m.ema_34 && m.ema_34 < m.ema_89
+                    m.ema_8 < m.ema_21 && m.ema_21 < m.ema_34 && m.ema_34 < m.ema_89 ||
+                        *loose && m.ema_8 < m.ema_34
                 });
 
                 let slow_stoch = stoch::get_slow_stoch(
