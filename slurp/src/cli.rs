@@ -11,6 +11,10 @@ pub struct Args {
 
     #[structopt(long, default_value = "4001")]
     pub port: u32,
+
+    /// Max number of concurrent requests
+    #[structopt(long, default_value = "40")]
+    pub req_limit: usize,
 }
 
 #[derive(StructOpt, Debug)]

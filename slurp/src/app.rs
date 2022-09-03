@@ -36,6 +36,7 @@ fn us_stock(stk: &str, primary_exchange: Option<String>) -> Contract {
 pub struct App {
     pub client: EClient,
     pub db: Db,
+    pub concurrency_limit: usize,
     pub force: bool,
     pub full_ticker_queue: VecDeque<String>,
     pub incremental_ticker_queue: VecDeque<String>,
@@ -61,9 +62,10 @@ fn close_time(mut dt: DateTime<Utc>) -> DateTime<Utc> {
 }
 
 impl App {
-    pub fn new(db: Db, force: bool) -> Self {
+    pub fn new(db: Db, concurrency_limit: usize, force: bool) -> Self {
         App {
             client: EClient::new(),
+            concurrency_limit,
             db,
             force,
             open_requests: HashMap::new(),
