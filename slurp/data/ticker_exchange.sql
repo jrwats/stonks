@@ -1,6 +1,6 @@
 PRAGMA foreign_keys=OFF;
 BEGIN TRANSACTION;
-CREATE TABLE ticker_exchange (
+CREATE TABLE IF NOT EXISTS ticker_exchange (
            ticker TEXT PRIMARY KEY NOT NULL,
            primary_exchange TEXT
          );
