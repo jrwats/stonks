@@ -36,7 +36,7 @@ fn us_stock(stk: &str, primary_exchange: Option<String>) -> Contract {
 pub struct App {
     pub client: EClient,
     pub db: Db,
-    pub concurrency_limit: usize,
+    pub req_limit: usize,
     pub force: bool,
     pub full_ticker_queue: VecDeque<String>,
     pub incremental_ticker_queue: VecDeque<String>,
@@ -62,10 +62,10 @@ fn close_time(mut dt: DateTime<Utc>) -> DateTime<Utc> {
 }
 
 impl App {
-    pub fn new(db: Db, concurrency_limit: usize, force: bool) -> Self {
+    pub fn new(db: Db, req_limit: usize, force: bool) -> Self {
         App {
             client: EClient::new(),
-            concurrency_limit,
+            req_limit,
             db,
             force,
             open_requests: HashMap::new(),
@@ -121,11 +121,11 @@ impl App {
 
     pub fn run(&mut self) -> anyhow::Result<()> {
         let mut count = 0;
-        while !self.full_ticker_queue.is_empty() && count < CONCURRENCY_LIMIT {
+        while !self.full_ticker_queue.is_empty() && count < self.req_limit {
             self.request_next_ticker()?;
             count += 1;
         }
-        while !self.incremental_ticker_queue.is_empty() && count < CONCURRENCY_LIMIT {
+        while !self.incremental_ticker_queue.is_empty() && count < self.req_limit {
             self.request_next_incremental_ticker()?;
             count += 1;
         }
