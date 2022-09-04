@@ -1,9 +1,10 @@
 use std::io::{self, prelude::*};
+use std::sync::{Arc, Mutex};
 use structopt::StructOpt;
-
-// use log::{error, info};
+use rayon::prelude::*;
 
 mod app;
+mod calc;
 mod cli;
 mod db;
 mod quote;
@@ -96,11 +97,38 @@ fn main() -> anyhow::Result<()> {
             }
         }
         Command::CalculateMetrics => {
-            let mut app = App::new(db, args.req_limit, false);
+            let adb = Arc::new(Mutex::new(db));
+            let mut tickers: Vec<String> = Vec::with_capacity(2048);
             for io_ticker in io::stdin().lock().lines() {
                 let ticker = io_ticker?;
-                app.calculate_and_insert_metrics(&ticker)?;
+                tickers.push(ticker.clone());
+                // app.calculate_and_insert_metrics(&ticker)?;
             }
+            tickers.par_iter_mut().map(|ref sym| {
+                let quotes = {
+                    let db = adb.lock().unwrap();
+                    db.get_all_daily_quotes(sym)?
+                };
+ 
+                for window in db::SMA_WINDOWS {
+                    let smas = calc::get_moving_avgs(window, &quotes);
+                    let table = format!("sma_{}", window);
+                    {
+                        let mut db = adb.lock().unwrap();
+                        db.insert_calculations(&table, &smas)?;
+                    }
+                }
+
+                for window in db::EMA_WINDOWS {
+                    let emas = calc::get_exp_moving_avgs(window, &quotes);
+                    let table = format!("ema_{}", window);
+                    {
+                        let mut db = adb.lock().unwrap();
+                        db.insert_calculations(&table, &emas)?;
+                    }
+                }
+                Ok(())
+            }).collect::<anyhow::Result<Vec<()>>>()?;
         }
     }
     Ok(())

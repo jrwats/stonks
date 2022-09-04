@@ -1,11 +1,13 @@
 use anyhow::Context;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, ToSql};
+// use std::collections::HashMap;
 use std::env;
 use std::path::{Path, PathBuf};
 
 const DEFAULT_FILE: &str = ".local/stonks/db.sqlite3";
 
 use crate::quote::Quote;
+use crate::calc;
 
 pub const SMA_WINDOWS: [usize; 2] = [50, 200];
 pub const EMA_WINDOWS: [usize; 4] = [8, 21, 34, 89];
@@ -148,6 +150,33 @@ impl Db {
         Ok(row)
     }
 
+    pub fn calculate_and_insert_metrics(&mut self, ticker: &str) -> anyhow::Result<()> {
+        let quotes = self.get_all_daily_quotes(ticker)?;
+        for ema_window in SMA_WINDOWS {
+            self.insert_simple_moving_avgs(ema_window, &quotes)?;
+        }
+        for ema_window in EMA_WINDOWS {
+            self.insert_emas(ema_window, &quotes)?;
+        }
+        Ok(())
+    }
+
+    fn insert_simple_moving_avgs(
+        &mut self,
+        window: usize,
+        quotes: &[QuoteRow],
+    ) -> anyhow::Result<()> {
+        let vals = calc::get_moving_avgs(window, quotes);
+        let table = format!("sma_{}", window);
+        self.insert_calculations(&table, &vals)
+    }
+
+    fn insert_emas(&mut self, window: usize, quotes: &[QuoteRow]) -> anyhow::Result<()> {
+        let vals = calc::get_exp_moving_avgs(window, quotes);
+        let table = format!("ema_{}", window);
+        self.insert_calculations(&table, &vals)
+    }
+
     pub fn get_all_daily_quotes(&self, ticker: &str) -> anyhow::Result<Vec<QuoteRow>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, timestamp, open, close, high, low, avg, volume, count
@@ -162,6 +191,27 @@ impl Db {
         }
         Ok(result)
     }
+
+    // pub fn get_daily_batch(&self, tickers: &[String]) -> anyhow::Result<HashMap<String, QuoteRow>> {
+    //     let mut stmt = self.conn.prepare(
+    //         "SELECT id, ticker, timestamp, open, close, high, low, avg, volume, count
+    //      FROM daily
+    //      WHERE ticker IN = (?)
+    //      ORDER BY timestamp ASC",
+    //     )?;
+    //
+    //     let rsyms: Vec<rusqlite::types::Value>;
+    //     for ticker in tickers {
+    //         let val = ticker.clone().to_sql()?;
+    //         rsyms.push(val);
+    //     }
+    //     let mut rows = stmt.query(params![tickers])?;
+    //     let mut result = HashMap::new();
+    //     while let Some(row) = rows.next()? {
+    //         result.push(row_to_quote(row)?);
+    //     }
+    //     Ok(result)
+    // }
 
     pub fn get_last_quote(&self, ticker: &str) -> anyhow::Result<QuoteRow> {
         let mut stmt = self.conn.prepare(

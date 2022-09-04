@@ -9,7 +9,7 @@ use ibtwsapi::core::messages::ServerRspMsg;
 use log::{error, info};
 use std::thread;
 
-use crate::db::{self, Db, QuoteRow};
+use crate::db::Db;
 use crate::quote::Quote;
 
 const CONCURRENCY_LIMIT: usize = 40;
@@ -297,7 +297,7 @@ impl App {
                     self.db.insert_daily_quotes(&ticker, &quotes)?;
                 }
                 // let start = time::Instant::now();
-                self.calculate_and_insert_metrics(&ticker)?;
+                self.db.calculate_and_insert_metrics(&ticker)?;
                 // eprintln!("calculate & insert metrics in: {:?}", start.elapsed());
             }
             Some(ServerRspMsg::CommissionReport { commission_report }) => eprintln!(
@@ -313,126 +313,7 @@ impl App {
                 thread::sleep(time::Duration::new(2, 0));
             }
         }
-
         Ok(())
-    }
-
-    pub fn calculate_and_insert_metrics(&mut self, ticker: &str) -> anyhow::Result<()> {
-        let quotes = self.db.get_all_daily_quotes(ticker)?;
-        for ema_window in db::SMA_WINDOWS {
-            self.insert_simple_moving_avgs(ema_window, &quotes)?;
-        }
-        for ema_window in db::EMA_WINDOWS {
-            self.insert_emas(ema_window, &quotes)?;
-        }
-        Ok(())
-    }
-
-    fn calculate_moving_avgs(window: usize, quotes: &[QuoteRow]) -> Vec<(i32, f64)> {
-        if quotes.is_empty() || window > quotes.len() {
-            return vec![];
-        }
-
-        let mut sum: f64 = quotes[0..window].iter().map(|q| q.quote.close).sum();
-        let mut avgs = Vec::with_capacity(quotes.len() - window);
-        avgs.push((quotes[window - 1].id, sum / (window as f64)));
-        let mut drop_idx = 0;
-        for quote in quotes[window..].iter() {
-            sum -= quotes[drop_idx].quote.close;
-            sum += quote.quote.close;
-            avgs.push((quote.id, sum / (window as f64)));
-            drop_idx += 1;
-        }
-        avgs
-    }
-
-    fn insert_simple_moving_avgs(
-        &mut self,
-        window: usize,
-        quotes: &[QuoteRow],
-    ) -> anyhow::Result<()> {
-        let vals = Self::calculate_moving_avgs(window, quotes);
-        let table = format!("sma_{}", window);
-        self.db.insert_calculations(&table, &vals)
-    }
-
-    fn calculate_exp_moving_avgs(window: usize, quotes: &[QuoteRow]) -> Vec<(i32, f64)> {
-        if quotes.is_empty() || window > quotes.len() {
-            return vec![];
-        }
-        let mut avg: f64 = quotes[0].quote.close;
-        let mut avgs = Vec::with_capacity(quotes.len() - window);
-
-        // Initialize our EMA with a pseudo-EMA, pretending first entry represents an average, and
-        // extending the window until it matches
-        let mut init_window = 2f64;
-        for quote in quotes[1..window].iter() {
-            let init_smoothing = 2.0 / (init_window + 1.0);
-            avg = (quote.quote.close - avg) * init_smoothing + avg;
-            init_window += 1.0;
-        }
-
-        let smoothing: f64 = 2.0 / (window as f64 + 1.0);
-        avgs.push((quotes[window - 1].id, avg));
-        for quote in quotes[window..].iter() {
-            avg = (quote.quote.close - avg) * smoothing + avg;
-            avgs.push((quote.id, avg));
-        }
-        avgs
-    }
-
-    fn insert_emas(&mut self, window: usize, quotes: &[QuoteRow]) -> anyhow::Result<()> {
-        let vals = Self::calculate_exp_moving_avgs(window, quotes);
-        let table = format!("ema_{}", window);
-        self.db.insert_calculations(&table, &vals)
     }
 }
 
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_moving_avgs() {
-        let mut id = -1;
-        let mocks: Vec<QuoteRow> = [2.0, 3.0, 4.0, 5.5, 6.0, 7.0]
-            .map(|f| {
-                let mut quote = Quote::default();
-                quote.close = f;
-                id += 1;
-                QuoteRow { id, quote }
-            })
-            .into_iter()
-            .collect();
-        let avgs = App::calculate_moving_avgs(3, &mocks);
-        //  [(2, 3.0), (3, 4.166666666666667), (4, 5.166666666666667), (5, 6.166666666666667)]
-        assert_eq!(
-            avgs,
-            vec![(2, 3.0), (3, 12.5 / 3.0), (4, 15.5 / 3.0), (5, 18.5 / 3.0)]
-        );
-    }
-
-    #[test]
-    fn test_exp_avgs() {
-        let mut id = -1;
-        let mocks: Vec<QuoteRow> = [2.0, 3.0, 4.0, 5.5, 6.0, 7.0]
-            .map(|f| {
-                let mut quote = Quote::default();
-                quote.close = f;
-                id += 1;
-                QuoteRow { id, quote }
-            })
-            .into_iter()
-            .collect();
-        let avgs = App::calculate_exp_moving_avgs(3, &mocks);
-        assert_eq!(
-            avgs,
-            [
-                (2, 3.333333333333333),
-                (3, 4.416666666666666),
-                (4, 5.208333333333333),
-                (5, 6.104166666666666)
-            ],
-        );
-    }
-}
