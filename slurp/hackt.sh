@@ -13,7 +13,7 @@ todo() {
 todo > "$tofetch"
 while [[ -s "$tofetch" ]]; do
   echo "$(wc -l /tmp/tofetch.list) tickers" >&2
-  timeout 120 </tmp/tofetch.list cargo run --release -- "$@" full
+  timeout --foreground 120 </tmp/tofetch.list cargo run --release -- "$@" full
   exit_code=$?
   echo "exit code: $exit_code" >&2
   todo > "$tofetch"
