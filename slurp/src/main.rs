@@ -61,7 +61,7 @@ fn main() -> anyhow::Result<()> {
                     }
                 }
             }
-            println!("{}\t{}\t{}\t{}", "ticker", "stoch", "ADX", "RSI");
+            println!("{}\t{}\t{}\t{}\t{}", "ticker", "loose", "stoch", "ADX", "RSI");
             for (ticker, quotes) in sym2quotes {
                 let ema_8: HashMap<i32, f64> =
                     calc::get_exp_moving_avgs(8, &quotes).into_iter().collect();
@@ -77,20 +77,23 @@ fn main() -> anyhow::Result<()> {
                     continue;
                 }
                 let ema_start_idx = quotes.len() - ema_period;
-                let bull_trend = quotes[ema_start_idx..].iter().all(|q| {
+                let mut is_loose_result = false;
+                let mut bull_trend = quotes[ema_start_idx..].iter().all(|q| {
                     let i = q.id;
-                    ema_8.get(&i) > ema_21.get(&i)
-                        && ema_21.get(&i) > ema_34.get(&i)
-                        && ema_34.get(&i) > ema_89.get(&i)
-                        || *loose && ema_8.get(&i) > ema_34.get(&i)
+                    ema_8.get(&i) > ema_21.get(&i) && ema_21.get(&i) > ema_34.get(&i) && ema_34.get(&i) > ema_89.get(&i)
                 });
-                let bear_trend = quotes[ema_start_idx..].iter().all(|q| {
+                if !bull_trend && *loose {
+                    bull_trend = quotes[ema_start_idx..].iter().all(|q| { ema_8.get(&q.id) > ema_34.get(&q.id) });
+                    is_loose_result = bull_trend;
+                }
+                let mut bear_trend = quotes[ema_start_idx..].iter().all(|q| {
                     let i = q.id;
-                    ema_8.get(&i) < ema_21.get(&i)
-                        && ema_21.get(&i) < ema_34.get(&i)
-                        && ema_34.get(&i) < ema_89.get(&i)
-                        || *loose && ema_8.get(&i) < ema_34.get(&i)
+                    ema_8.get(&i) < ema_21.get(&i) && ema_21.get(&i) < ema_34.get(&i) && ema_34.get(&i) < ema_89.get(&i)
                 });
+                if !bear_trend && *loose {
+                    bear_trend = quotes[ema_start_idx..].iter().all(|q| { ema_8.get(&q.id) < ema_34.get(&q.id) });
+                    is_loose_result |= bear_trend;
+                }
 
                 let slow_stoch = stoch::get_slow_stoch(
                     *stoch_k_len,
@@ -107,7 +110,7 @@ fn main() -> anyhow::Result<()> {
                         && adxr > 20.0
                 {
                     let rsi = stoch::get_last_rsi(&quotes, 2);
-                    println!("{}\t{}\t{}\t{}", ticker, slow_stoch, adxr, rsi);
+                    println!("{}\t{}\t{}\t{}\t{}", ticker, is_loose_result, slow_stoch, adxr, rsi);
                 }
             }
         }
