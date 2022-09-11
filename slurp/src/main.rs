@@ -1,7 +1,6 @@
 use std::io::{self, prelude::*};
-use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 use structopt::StructOpt;
-use rayon::prelude::*;
 
 mod app;
 mod calc;
@@ -49,41 +48,57 @@ fn main() -> anyhow::Result<()> {
             ref loose,
             ref adx_period,
         } => {
-            println!("{}\t{}\t{}\t{}", "ticker", "stoch", "ADX", "RSI");
+            let mut tickers: Vec<String> = Vec::with_capacity(2048);
             for io_ticker in io::stdin().lock().lines() {
                 let ticker = io_ticker?;
+                tickers.push(ticker.clone());
+            }
+            let sym2quotes = db.get_daily_batch(&tickers)?;
+            if sym2quotes.len() != tickers.len() {
+                for ticker in tickers {
+                    if !sym2quotes.contains_key(&ticker) {
+                        eprintln!("missing quotes for: {}", ticker);
+                    }
+                }
+            }
+            println!("{}\t{}\t{}\t{}", "ticker", "stoch", "ADX", "RSI");
+            for (ticker, quotes) in sym2quotes {
+                let ema_8: HashMap<i32, f64> =
+                    calc::get_exp_moving_avgs(8, &quotes).into_iter().collect();
+                let ema_21: HashMap<i32, f64> =
+                    calc::get_exp_moving_avgs(21, &quotes).into_iter().collect();
+                let ema_34: HashMap<i32, f64> =
+                    calc::get_exp_moving_avgs(34, &quotes).into_iter().collect();
+                let ema_89: HashMap<i32, f64> =
+                    calc::get_exp_moving_avgs(89, &quotes).into_iter().collect();
 
                 // get 2 months of data for
-                // eprintln!("{}", ticker);
-                // let start = std::time::Instant::now();
-                let metric_rows = db.get_metrics_for_ticker(&ticker, None)?;
-                // eprintln!("fetched in: {:?}", start.elapsed());
-                if metric_rows.is_empty() {
-                    eprintln!("No rows for {}", ticker);
+                if *ema_period > quotes.len() {
                     continue;
                 }
-                if *ema_period > metric_rows.len() {
-                    continue;
-                }
-                let ema_start_idx = metric_rows.len() - ema_period;
-                let bull_trend = metric_rows[ema_start_idx..].iter().all(|mr| {
-                    let m = &mr.metrics;
-                    m.ema_8 > m.ema_21 && m.ema_21 > m.ema_34 && m.ema_34 > m.ema_89 ||
-                        *loose && m.ema_8 > m.ema_34
+                let ema_start_idx = quotes.len() - ema_period;
+                let bull_trend = quotes[ema_start_idx..].iter().all(|q| {
+                    let i = q.id;
+                    ema_8.get(&i) > ema_21.get(&i)
+                        && ema_21.get(&i) > ema_34.get(&i)
+                        && ema_34.get(&i) > ema_89.get(&i)
+                        || *loose && ema_8.get(&i) > ema_34.get(&i)
                 });
-                let bear_trend = metric_rows[ema_start_idx..].iter().all(|mr| {
-                    let m = &mr.metrics;
-                    m.ema_8 < m.ema_21 && m.ema_21 < m.ema_34 && m.ema_34 < m.ema_89 ||
-                        *loose && m.ema_8 < m.ema_34
+                let bear_trend = quotes[ema_start_idx..].iter().all(|q| {
+                    let i = q.id;
+                    ema_8.get(&i) < ema_21.get(&i)
+                        && ema_21.get(&i) < ema_34.get(&i)
+                        && ema_34.get(&i) < ema_89.get(&i)
+                        || *loose && ema_8.get(&i) < ema_34.get(&i)
                 });
 
                 let slow_stoch = stoch::get_slow_stoch(
                     *stoch_k_len,
                     *stoch_k_smoothing,
                     *stoch_d_smoothing,
-                    &metric_rows,
+                    &quotes,
                 );
-                let quotes: Vec<Quote> = metric_rows.into_iter().map(|mr| mr.quote).collect();
+                let quotes: Vec<Quote> = quotes.into_iter().map(|qr| qr.quote).collect();
                 let adxr = stoch::get_adxr(&quotes, *adx_period, 1);
 
                 if *force
@@ -95,40 +110,6 @@ fn main() -> anyhow::Result<()> {
                     println!("{}\t{}\t{}\t{}", ticker, slow_stoch, adxr, rsi);
                 }
             }
-        }
-        Command::CalculateMetrics => {
-            let adb = Arc::new(Mutex::new(db));
-            let mut tickers: Vec<String> = Vec::with_capacity(2048);
-            for io_ticker in io::stdin().lock().lines() {
-                let ticker = io_ticker?;
-                tickers.push(ticker.clone());
-                // app.calculate_and_insert_metrics(&ticker)?;
-            }
-            tickers.par_iter_mut().map(|ref sym| {
-                let quotes = {
-                    let db = adb.lock().unwrap();
-                    db.get_all_daily_quotes(sym)?
-                };
- 
-                for window in db::SMA_WINDOWS {
-                    let smas = calc::get_moving_avgs(window, &quotes);
-                    let table = format!("sma_{}", window);
-                    {
-                        let mut db = adb.lock().unwrap();
-                        db.insert_calculations(&table, &smas)?;
-                    }
-                }
-
-                for window in db::EMA_WINDOWS {
-                    let emas = calc::get_exp_moving_avgs(window, &quotes);
-                    let table = format!("ema_{}", window);
-                    {
-                        let mut db = adb.lock().unwrap();
-                        db.insert_calculations(&table, &emas)?;
-                    }
-                }
-                Ok(())
-            }).collect::<anyhow::Result<Vec<()>>>()?;
         }
     }
     Ok(())

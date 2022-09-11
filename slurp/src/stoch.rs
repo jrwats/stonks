@@ -1,4 +1,4 @@
-use crate::db::MetricRow;
+use crate::db::QuoteRow;
 use crate::quote::Quote;
 
 /// True ranges
@@ -133,12 +133,12 @@ pub fn get_last_rsi(quotes: &[Quote], period: usize) -> f64 {
     *get_rsis(quotes, period).last().unwrap()
 }
 
-pub fn get_stochastics(metric_rows: &[MetricRow], k_len: usize) -> Vec<f64> {
-    let mut stochs = Vec::with_capacity(metric_rows.len() - k_len + 1);
-    for (idx, row) in metric_rows[(k_len - 1)..].iter().enumerate() {
+pub fn get_stochastics(quotes: &[QuoteRow], k_len: usize) -> Vec<f64> {
+    let mut stochs = Vec::with_capacity(quotes.len() - k_len + 1);
+    for (idx, row) in quotes[(k_len - 1)..].iter().enumerate() {
         let mut hi = f64::NEG_INFINITY;
         let mut lo = f64::INFINITY;
-        for row in metric_rows[idx..(idx + k_len)].iter() {
+        for row in quotes[idx..(idx + k_len)].iter() {
             if row.quote.high > hi {
                 hi = row.quote.high;
             }
@@ -151,13 +151,8 @@ pub fn get_stochastics(metric_rows: &[MetricRow], k_len: usize) -> Vec<f64> {
     stochs
 }
 
-pub fn get_slow_stoch(
-    k_len: usize,
-    k_smooth: usize,
-    d_smooth: usize,
-    metric_rows: &[MetricRow],
-) -> f64 {
-    let stochs = get_stochastics(metric_rows, k_len);
+pub fn get_slow_stoch(k_len: usize, k_smooth: usize, d_smooth: usize, quotes: &[QuoteRow]) -> f64 {
+    let stochs = get_stochastics(quotes, k_len);
     let ks = get_smas(&stochs, k_smooth);
     let ds = get_smas(&ks, d_smooth);
     return ds[ds.len() - 1];

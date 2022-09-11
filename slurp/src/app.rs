@@ -281,15 +281,19 @@ impl App {
                                 eprintln!(
                                     "{} != {} for {}",
                                     cached_quote.quote.close, first_quote.close, ticker
-                                    );
+                                );
                                 self.add_ticker_to_request_queue(ticker);
-                                if self.open_requests.len() < CONCURRENCY_LIMIT + CONCURRENCY_BUFFER {
+                                if self.open_requests.len() < CONCURRENCY_LIMIT + CONCURRENCY_BUFFER
+                                {
                                     self.request_next_ticker()?;
                                 }
                                 continue;
                             }
                         } else {
-                            eprintln!("No row for {} with timestamp {}", ticker, first_quote.timestamp);
+                            eprintln!(
+                                "No row for {} with timestamp {}",
+                                ticker, first_quote.timestamp
+                            );
                             continue;
                         }
                     }
@@ -297,7 +301,7 @@ impl App {
                     self.db.insert_daily_quotes(&ticker, &quotes)?;
                 }
                 // let start = time::Instant::now();
-                self.db.calculate_and_insert_metrics(&ticker)?;
+                // self.db.calculate_and_insert_metrics(&ticker)?;
                 // eprintln!("calculate & insert metrics in: {:?}", start.elapsed());
             }
             Some(ServerRspMsg::CommissionReport { commission_report }) => eprintln!(
@@ -316,4 +320,3 @@ impl App {
         Ok(())
     }
 }
-

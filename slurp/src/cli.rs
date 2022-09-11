@@ -31,10 +31,6 @@ pub enum Command {
         force: bool,
     },
 
-    /// Calculate and store simple moving averages, exponential moving averages, ATRs, etc
-    /// for all stored tickers
-    CalculateMetrics,
-
     /// Find all tickers (of the ones provided) for whom the last 30-days of metrics abide by the
     /// EMA 8 < EMA 21 < EMA 34 < EMA 89 OR
     /// EMA 8 > EMA 21 > EMA 34 > EMA 89 rules

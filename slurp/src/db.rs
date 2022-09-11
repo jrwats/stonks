@@ -1,16 +1,21 @@
 use anyhow::Context;
-use rusqlite::{params, Connection, OptionalExtension, ToSql};
-// use std::collections::HashMap;
+use rusqlite::{params, Connection, OptionalExtension};
+use std::collections::BTreeMap;
 use std::env;
 use std::path::{Path, PathBuf};
 
 const DEFAULT_FILE: &str = ".local/stonks/db.sqlite3";
 
 use crate::quote::Quote;
-use crate::calc;
 
 pub const SMA_WINDOWS: [usize; 2] = [50, 200];
 pub const EMA_WINDOWS: [usize; 4] = [8, 21, 34, 89];
+
+#[derive(Debug)]
+pub struct Calculations {
+    pub table: String,
+    pub values: Vec<(i32, f64)>,
+}
 
 #[derive(Debug)]
 pub struct QuoteRow {
@@ -20,8 +25,7 @@ pub struct QuoteRow {
 
 #[derive(Debug)]
 pub struct MetricRow {
-    pub id: i32,
-    pub quote: Quote,
+    pub quote_row: QuoteRow,
     pub metrics: Metrics,
 }
 
@@ -68,30 +72,6 @@ fn init_tables(conn: &mut Connection) -> rusqlite::Result<()> {
          )",
         [],
     )?;
-
-    for ema_period in EMA_WINDOWS {
-        let sql = format!(
-            r#"CREATE TABLE IF NOT EXISTS ema_{} (
-           daily_id INTEGER PRIMARY KEY NOT NULL,
-           value REAL,
-           FOREIGN KEY ([daily_id]) REFERENCES "daily" ([id]) ON DELETE CASCADE
-         )"#,
-            ema_period,
-        );
-        conn.execute(&sql, [])?;
-    }
-
-    for sma_period in SMA_WINDOWS {
-        let sql = format!(
-            r#"CREATE TABLE IF NOT EXISTS sma_{} (
-           daily_id INTEGER PRIMARY KEY NOT NULL,
-           value REAL,
-           FOREIGN KEY ([daily_id]) REFERENCES "daily" ([id]) ON DELETE CASCADE
-         )"#,
-            sma_period,
-        );
-        conn.execute(&sql, [])?;
-    }
     Ok(())
 }
 
@@ -150,33 +130,7 @@ impl Db {
         Ok(row)
     }
 
-    pub fn calculate_and_insert_metrics(&mut self, ticker: &str) -> anyhow::Result<()> {
-        let quotes = self.get_all_daily_quotes(ticker)?;
-        for ema_window in SMA_WINDOWS {
-            self.insert_simple_moving_avgs(ema_window, &quotes)?;
-        }
-        for ema_window in EMA_WINDOWS {
-            self.insert_emas(ema_window, &quotes)?;
-        }
-        Ok(())
-    }
-
-    fn insert_simple_moving_avgs(
-        &mut self,
-        window: usize,
-        quotes: &[QuoteRow],
-    ) -> anyhow::Result<()> {
-        let vals = calc::get_moving_avgs(window, quotes);
-        let table = format!("sma_{}", window);
-        self.insert_calculations(&table, &vals)
-    }
-
-    fn insert_emas(&mut self, window: usize, quotes: &[QuoteRow]) -> anyhow::Result<()> {
-        let vals = calc::get_exp_moving_avgs(window, quotes);
-        let table = format!("ema_{}", window);
-        self.insert_calculations(&table, &vals)
-    }
-
+    /*
     pub fn get_all_daily_quotes(&self, ticker: &str) -> anyhow::Result<Vec<QuoteRow>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, timestamp, open, close, high, low, avg, volume, count
@@ -185,33 +139,39 @@ impl Db {
          ORDER BY timestamp ASC",
         )?;
         let mut rows = stmt.query([ticker])?;
+        // rows.try_into
         let mut result = vec![];
         while let Some(row) = rows.next()? {
             result.push(row_to_quote(row)?);
         }
         Ok(result)
     }
+    */
 
-    // pub fn get_daily_batch(&self, tickers: &[String]) -> anyhow::Result<HashMap<String, QuoteRow>> {
-    //     let mut stmt = self.conn.prepare(
-    //         "SELECT id, ticker, timestamp, open, close, high, low, avg, volume, count
-    //      FROM daily
-    //      WHERE ticker IN = (?)
-    //      ORDER BY timestamp ASC",
-    //     )?;
-    //
-    //     let rsyms: Vec<rusqlite::types::Value>;
-    //     for ticker in tickers {
-    //         let val = ticker.clone().to_sql()?;
-    //         rsyms.push(val);
-    //     }
-    //     let mut rows = stmt.query(params![tickers])?;
-    //     let mut result = HashMap::new();
-    //     while let Some(row) = rows.next()? {
-    //         result.push(row_to_quote(row)?);
-    //     }
-    //     Ok(result)
-    // }
+    pub fn get_daily_batch(
+        &self,
+        tickers: &[String],
+    ) -> anyhow::Result<BTreeMap<String, Vec<QuoteRow>>> {
+        let mut vars = "?,".repeat(tickers.len());
+        vars.pop();
+        let sql = format!(
+            "SELECT id, timestamp, open, close, high, low, avg, volume, count, ticker
+             FROM daily
+             WHERE ticker IN ({})
+             ORDER BY timestamp ASC",
+            vars,
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
+
+        let mut rows = stmt.query(rusqlite::params_from_iter(tickers))?;
+        let mut sym2quotes: BTreeMap<String, Vec<QuoteRow>> = BTreeMap::new();
+        while let Some(row) = rows.next()? {
+            let ticker: String = row.get(9)?;
+            let quote = row_to_quote(row)?;
+            sym2quotes.entry(ticker).or_default().push(quote);
+        }
+        Ok(sym2quotes)
+    }
 
     pub fn get_last_quote(&self, ticker: &str) -> anyhow::Result<QuoteRow> {
         let mut stmt = self.conn.prepare(
@@ -244,71 +204,6 @@ impl Db {
         Ok(quote_row)
     }
 
-    pub fn get_metrics_for_ticker(
-        &self,
-        ticker: &str,
-        limit: Option<usize>,
-    ) -> anyhow::Result<Vec<MetricRow>> {
-        let mut stmt = self.conn.prepare(
-            "
-            SELECT * FROM (
-              SELECT
-                id, timestamp, open, close, high, low, avg, volume, count,
-                e8.value as ema_8, e21.value as ema_21, e34.value as ema_34,
-                e89.value as ema_89, s50.value as sma_50, s200.value as sma_200
-              FROM daily d
-              LEFT OUTER JOIN ema_8 e8     ON d.id = e8.daily_id
-              LEFT OUTER JOIN ema_21 e21   ON d.id = e21.daily_id
-              LEFT OUTER JOIN ema_34 e34   ON d.id = e34.daily_id
-              LEFT OUTER JOIN ema_89 e89   ON d.id = e89.daily_id
-              LEFT OUTER JOIN sma_50 s50   ON d.id = s50.daily_id
-              LEFT OUTER JOIN sma_200 s200 ON d.id = s200.daily_id
-              WHERE ticker = ?
-              ORDER BY timestamp DESC
-              LIMIT ?
-            ) ORDER BY timestamp ASC",
-        )?;
-        let mut rows = stmt.query(params![ticker, limit.unwrap_or(9999)])?;
-        let mut result = vec![];
-        while let Some(row) = rows.next()? {
-            let id: i32 = row.get(0)?;
-            let timestamp: i64 = row.get(1)?;
-            let open: f64 = row.get(2)?;
-            let close: f64 = row.get(3)?;
-            let high: f64 = row.get(4)?;
-            let low: f64 = row.get(5)?;
-            let avg: f64 = row.get(6)?;
-            let volume: i64 = row.get(7)?;
-            let count: i32 = row.get(8)?;
-            let quote = Quote {
-                timestamp,
-                open,
-                close,
-                high,
-                low,
-                avg,
-                volume,
-                count,
-            };
-            let ema_8: Option<f64> = row.get(9)?;
-            let ema_21: Option<f64> = row.get(10)?;
-            let ema_34: Option<f64> = row.get(11)?;
-            let ema_89: Option<f64> = row.get(12)?;
-            let sma_50: Option<f64> = row.get(13)?;
-            let sma_200: Option<f64> = row.get(14)?;
-            let metrics = Metrics {
-                ema_8,
-                ema_21,
-                ema_34,
-                ema_89,
-                sma_50,
-                sma_200,
-            };
-            result.push(MetricRow { id, quote, metrics });
-        }
-        Ok(result)
-    }
-
     pub fn insert_daily_quotes(
         &mut self,
         ticker: &str,
@@ -339,6 +234,7 @@ impl Db {
         Ok(tx.commit()?)
     }
 
+    /*
     pub fn insert_calculations(
         &mut self,
         table: &str,
@@ -357,4 +253,5 @@ impl Db {
         }
         Ok(tx.commit()?)
     }
+    */
 }

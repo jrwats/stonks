@@ -1,5 +1,6 @@
 use crate::db::QuoteRow;
 
+/*
 pub fn get_moving_avgs(window: usize, quotes: &[QuoteRow]) -> Vec<(i32, f64)> {
     if quotes.is_empty() || window > quotes.len() {
         return vec![];
@@ -17,6 +18,7 @@ pub fn get_moving_avgs(window: usize, quotes: &[QuoteRow]) -> Vec<(i32, f64)> {
     }
     avgs
 }
+*/
 
 pub fn get_exp_moving_avgs(window: usize, quotes: &[QuoteRow]) -> Vec<(i32, f64)> {
     if quotes.is_empty() || window > quotes.len() {

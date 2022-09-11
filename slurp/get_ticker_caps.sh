@@ -12,4 +12,3 @@ print(json.dumps([dict(r) for r in csv.DictReader(sys.stdin)]))' |
     tee ticker_mkt_cap.tsv |
     cut -d $'\t' -f1 | sort |
     comm -23 - unavailable.conf > tickers.list
-
