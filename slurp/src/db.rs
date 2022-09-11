@@ -8,9 +8,6 @@ const DEFAULT_FILE: &str = ".local/stonks/db.sqlite3";
 
 use crate::quote::Quote;
 
-pub const SMA_WINDOWS: [usize; 2] = [50, 200];
-pub const EMA_WINDOWS: [usize; 4] = [8, 21, 34, 89];
-
 #[derive(Debug)]
 pub struct Calculations {
     pub table: String,
@@ -21,22 +18,6 @@ pub struct Calculations {
 pub struct QuoteRow {
     pub id: i32,
     pub quote: Quote,
-}
-
-#[derive(Debug)]
-pub struct MetricRow {
-    pub quote_row: QuoteRow,
-    pub metrics: Metrics,
-}
-
-#[derive(Debug)]
-pub struct Metrics {
-    pub ema_8: Option<f64>,
-    pub ema_21: Option<f64>,
-    pub ema_34: Option<f64>,
-    pub ema_89: Option<f64>,
-    pub sma_50: Option<f64>,
-    pub sma_200: Option<f64>,
 }
 
 pub struct Db {
