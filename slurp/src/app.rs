@@ -49,7 +49,6 @@ pub struct App {
 /// Avoid requesting daily tickers in the middle of trading day
 fn close_time(mut dt: DateTime<Utc>) -> DateTime<Utc> {
     // If the hours given is less than 4:30PM, return yesterday's 4:30PM time for query input.
-    // TimeZone.from_offset9
     let edt_tz = FixedOffset::west(4 * 3600);
     let edt = dt.with_timezone(&edt_tz);
     if (edt.hour() > 9 || edt.hour() == 9 && edt.minute() >= 30)
@@ -100,7 +99,7 @@ impl App {
         }
         let contract = us_stock(ticker, exchange);
         let dt = close_time(Utc::now());
-        let query_time = dt.format("%Y%m%d %H:%M:%S").to_string();
+        let query_time = dt.format("%Y%m%d-%H:%M:%S").to_string();
         self.req_id += 1;
         self.open_requests
             .insert(self.req_id, (false, ticker.to_string()));
@@ -150,7 +149,7 @@ impl App {
             let last_quote = self.db.get_last_quote(&ticker)?;
             let dt = close_time(Utc::now());
             // eprintln!("dt: {:?}", dt);
-            let query_time = dt.format("%Y%m%d %H:%M:%S").to_string();
+            let query_time = dt.format("%Y%m%d-%H:%M:%S").to_string();
             let last_quote = Utc.timestamp(last_quote.quote.timestamp, 0);
             let num_days = (dt - last_quote).num_days();
             if num_days == 0 && !self.force {

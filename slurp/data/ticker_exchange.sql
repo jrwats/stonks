@@ -17,6 +17,7 @@ REPLACE INTO ticker_exchange VALUES('FIVE','NASDAQ');
 REPLACE INTO ticker_exchange VALUES('FRGE','NYSE');
 REPLACE INTO ticker_exchange VALUES('GPRO','NASDAQ');
 REPLACE INTO ticker_exchange VALUES('KEYS','NYSE');
+REPLACE INTO ticker_exchange VALUES('LAZR','NASDAQ');
 REPLACE INTO ticker_exchange VALUES('LPLA','NASDAQ');
 REPLACE INTO ticker_exchange VALUES('META','NASDAQ');
 REPLACE INTO ticker_exchange VALUES('PLAY','NASDAQ');
